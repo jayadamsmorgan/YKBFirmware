@@ -1,0 +1,17 @@
+menu "YKBFirmware settings"
+
+config YKB_SPLIT_KB
+    bool
+
+if YKB_SPLIT_KB
+rsource "Kconfig.split"
+endif # YKB_SPLIT_KB
+
+if !YKB_SPLIT_KB
+rsource "Kconfig.regular"
+endif # !YKB_SPLIT_KB
+
+config YKB_KB_KEY_COUNT
+    int
+
+endmenu # YKBFirmware settings

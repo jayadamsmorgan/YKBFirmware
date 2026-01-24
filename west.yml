@@ -1,0 +1,11 @@
+manifest:
+  remotes:
+    - name: ncs
+      url-base: https://github.com/jayadamsmorgan
+
+  projects:
+    - name: nrf
+      remote: ncs
+      repo-path: sdk-nrf
+      revision: v3.2.1-patch-nrf3540-mpsl
+      import: true

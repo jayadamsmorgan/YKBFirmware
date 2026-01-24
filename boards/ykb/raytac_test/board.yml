@@ -1,0 +1,11 @@
+board:
+  name: raytac_test
+  full_name: Raytac MDBT53V-DB board used for testing purposes of YKB firmware
+  vendor: ykb
+  socs:
+  - name: 'nrf5340'
+    variants:
+    - name: 'left'
+      cpucluster: 'cpuapp'
+    - name: 'right'
+      cpucluster: 'cpuapp'
