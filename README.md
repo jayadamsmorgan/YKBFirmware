@@ -18,7 +18,7 @@ pip install -U west
 cd ~/ncs-ws/ncs
 
 # Initialize project, SDK and deps
-west init -m https://github.com/jayadamsmorgan/YKBFirmware --mr main
+west init -m https://github.com/jayadamsmorgan/YKBFirmware --mr master
 west update
 west zephyr-export
 
