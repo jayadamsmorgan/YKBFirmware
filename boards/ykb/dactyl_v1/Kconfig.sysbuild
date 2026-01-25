@@ -1,0 +1,5 @@
+# source "$(ZEPHYR_BASE)/share/sysbuild/Kconfig"
+
+config YKB_BUILD_SPLIT_HALVES
+  bool "Build both split halves (left/right)"
+  default y

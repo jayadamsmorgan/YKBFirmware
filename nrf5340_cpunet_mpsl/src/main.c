@@ -8,13 +8,13 @@
 
 #include <zephyr/drivers/gpio.h>
 
-#include "hci_rpmsg_module.h"
+#include <lib/esb_ble_mpsl.h>
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 int main(void) {
 
-    hci_rpmsg_init();
+    mpsl_hci_rpmsg_init();
 
     while (1) {
         k_sleep(K_MSEC(2000));

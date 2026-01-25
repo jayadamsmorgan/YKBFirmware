@@ -1,4 +1,5 @@
 #include "hci_rpmsg_module.h"
+
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -391,7 +392,7 @@ static struct ipc_ept_cfg hci_ept_cfg = {
         },
 };
 
-int hci_rpmsg_init(void) {
+int mpsl_hci_rpmsg_init(void) {
     int err;
     const struct device *hci_ipc_instance = DEVICE_DT_GET(DT_NODELABEL(ipc0));
 

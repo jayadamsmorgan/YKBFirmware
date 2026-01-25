@@ -1,0 +1,19 @@
+identifier: dactyl_v1/nrf5340/cpuapp/right
+name: YKB Dactyl V1 (Right)
+type: mcu
+arch: arm
+toolchain:
+  - gnuarmemb
+  - zephyr
+ram: 448
+flash: 1024
+supported:
+  - counter
+  - gpio
+  - i2c
+  - i2s
+  - pwm
+  - qspi
+  - spi
+  - watchdog
+  - netif:openthread

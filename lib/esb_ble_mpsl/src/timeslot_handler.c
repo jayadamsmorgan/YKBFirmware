@@ -1,9 +1,9 @@
 #include "timeslot_handler.h"
-#include "mdk/nrf5340_network.h"
 
 #include <hal/nrf_timer.h>
 
 #include <mdk/nrf.h>
+
 #include <mpsl.h>
 #include <mpsl_timeslot.h>
 

@@ -1,0 +1,1 @@
+add_subdirectory_ifdef(CONFIG_LIB_ESB_BLE_MPSL esb_ble_mpsl)

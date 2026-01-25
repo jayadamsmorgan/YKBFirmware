@@ -3,8 +3,8 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/types.h>
 
-#include "app_esb.h"
-#include "esb_rpc_ids.h"
+#include "../../app_esb.h"
+#include "../esb_rpc_ids.h"
 
 #include <esb.h>
 #include <mdk/nrf.h>

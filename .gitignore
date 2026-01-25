@@ -2,6 +2,8 @@
 .vscode
 *.swp
 *~
+compile_commands.json
+.cache/
 
 # python
 .venv

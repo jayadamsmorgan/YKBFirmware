@@ -1,6 +1,6 @@
 board:
-  name: raytac_test
-  full_name: Raytac MDBT53V-DB board used for testing purposes of YKB firmware
+  name: dactyl_v1 
+  full_name: YKB Dactyl V1
   vendor: ykb
   socs:
   - name: 'nrf5340'

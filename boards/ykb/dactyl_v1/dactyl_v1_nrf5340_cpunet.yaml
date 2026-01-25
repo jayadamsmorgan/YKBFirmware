@@ -1,0 +1,15 @@
+identifier: dactyl_v1/nrf5340/cpunet
+name: YKB Dactyl V1 (Net core)
+type: mcu
+arch: arm
+toolchain:
+  - gnuarmemb
+  - zephyr
+ram: 64
+flash: 256
+supported:
+  - watchdog
+  - gpio
+  - i2c
+  - spi
+  - uart
