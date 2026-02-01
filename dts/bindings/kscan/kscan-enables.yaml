@@ -10,7 +10,7 @@ include: kscan.yaml
 
 properties:
 
-  io-channel:
+  io-channels:
     type: phandle-array
     required: true
     description: ADC channel used.
