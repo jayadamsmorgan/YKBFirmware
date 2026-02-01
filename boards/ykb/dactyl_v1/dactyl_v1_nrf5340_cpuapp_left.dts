@@ -1,7 +1,6 @@
 /dts-v1/;
 #include <nordic/nrf5340_cpuapp_qkaa.dtsi>
 #include "dactyl_v1_nrf5340_cpuapp_common.dts"
-#include "dactyl_v1_common.dtsi"
 
 / {
 	model = "YKB Dactyl V1 Left board";

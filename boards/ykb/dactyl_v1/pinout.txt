@@ -1,5 +1,5 @@
-P0.02
-P0.03
+P0.02 -> Debug UART TX (app core)
+P0.03 -> Debug UART RX (app core)
 P0.04 -> ADC channel 0 (MUX1 cmn)
 P0.05 -> ADC channel 1 (MUX2 cmn)
 P0.06 -> ADC channel 2 (MUX3 cmn)
@@ -30,9 +30,9 @@ P0.30
 P0.31
 P1.00
 P1.01
-P1.02 -> I2C SCL
+P1.02 -> I2C SDA
 P1.03
-P1.04 -> I2C SDA
+P1.04 -> I2C SCL
 P1.05
 P1.06
 P1.07 -> MUX4C
@@ -42,5 +42,5 @@ P1.10
 P1.11 -> I2S SDOUT (Control LED strip)
 P1.12 -> I2S SCK (needed for I2S to work, left floating)
 P1.13 -> I2S LRCK (needed for I2S to work, left floating)
-P1.14
-P1.15
+P1.14 -> Debug UART TX (Net core)
+P1.15 -> Debug UART RX (Net core)

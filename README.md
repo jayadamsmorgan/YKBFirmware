@@ -27,4 +27,10 @@ pip install -r zephyr/scripts/requirements.txt
 
 # Install toolchains
 west sdk install
+
+# Move to the project directory
+cd YKBFirmware
+
+# Build for the available board:
+make dactyl_v1
 ```

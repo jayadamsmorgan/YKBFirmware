@@ -17,12 +17,6 @@
 		zephyr,code-partition = &slot0_partition;
 		zephyr,bt-hci-ipc = &ipc0;
 	};
-
-
-	/* These aliases are provided for compatibility with samples */
-	aliases {
-		watchdog0 = &wdt0;
-	};
 };
 
 &uart0 {
