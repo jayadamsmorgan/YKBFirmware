@@ -14,8 +14,8 @@ source ~/ykb-firmware-ws/venv/bin/activate
 pip install -U pip wheel
 pip install -U west
 
-# Move to NCS dir, really important
-cd ~/ncs-ws/ncs
+# Move to dir, really important
+cd ~/ykb-firmware-ws
 
 # Initialize project, SDK and deps
 west init -m https://github.com/jayadamsmorgan/YKBFirmware --mr master
