@@ -1,6 +1,8 @@
 menuconfig KSCAN
     bool "Enable KScan driver"
-    default y if DT_HAS_KSCAN_ENABLES_ENABLED || DT_HAS_KSCAN_CHANNELS_ENABLED || DT_HAS_KSCAN_MUXES_ENABLED
+    default y if DT_HAS_KSCAN_ENABLES_ENABLED
+    default y if DT_HAS_KSCAN_CHANNELS_ENABLED
+    default y if DT_HAS_KSCAN_MUXES_ENABLED
     select ADC
 
 if KSCAN

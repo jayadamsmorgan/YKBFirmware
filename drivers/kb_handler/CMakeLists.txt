@@ -1,0 +1,5 @@
+zephyr_library()
+
+zephyr_library_sources_ifdef(CONFIG_KB_HANDLER_SIMPLE src/kb_handler_simple.c)
+zephyr_library_sources_ifdef(CONFIG_KB_HANDLER_SPLITLINK_MASTER src/kb_handler_splitlink_master.c)
+zephyr_library_sources_ifdef(CONFIG_KB_HANDLER_SPLITLINK_SLAVE src/kb_handler_splitlink_slave.c)

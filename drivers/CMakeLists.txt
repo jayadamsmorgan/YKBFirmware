@@ -1,3 +1,5 @@
+add_subdirectory_ifdef(CONFIG_KB_HANDLER kb_handler)
+
 add_subdirectory_ifdef(CONFIG_KSCAN kscan)
 
 add_subdirectory_ifdef(CONFIG_MUX mux)

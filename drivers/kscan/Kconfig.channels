@@ -1,15 +1,15 @@
 config KSCAN_CHANNELS
-    bool "Enable KScan driver for polling with multiplexors"
+    bool "Enable KScan driver for polling with channels"
     default y if DT_HAS_KSCAN_CHANNELS_ENABLED
 
 if KSCAN_CHANNELS
 
     config KSCAN_CHANNELS_THREAD_STACK_SIZE
-        int "KScan MUXes thread stack size (each channel)"
+        int "KScan Channels thread stack size (each channel)"
         default 1024
 
     config KSCAN_CHANNELS_THREAD_PRIORITY
-        int "KScan MUXes thread priority (each channel)"
+        int "KScan Channels thread priority (each channel)"
         default 15
 
 endif # KSCAN_CHANNELS

@@ -1,0 +1,37 @@
+menuconfig KB_HANDLER
+    bool "Enable KB Handler driver"
+    default y if DT_HAS_KB_HANDLER_SIMPLE_ENABLED
+    default y if DT_HAS_KB_HANDLER_SPLITLINK_MASTER_ENABLED
+    default y if DT_HAS_KB_HANDLER_SPLITLINK_SLAVE_ENABLED
+    select KSCAN
+
+if KB_HANDLER
+
+    choice KB_HANDLER_IMPL
+        prompt "KB Handler implementation"
+
+        config KB_HANDLER_SIMPLE
+            bool "Simple"
+            depends on DT_HAS_KB_HANDLER_SIMPLE_ENABLED
+
+        config KB_HANDLER_SPLITLINK_SLAVE
+            bool "Splitlink (slave)"
+            depends on DT_HAS_KB_HANDLER_SPLITLINK_SLAVE_ENABLED
+            select SPLITLINK
+
+        config KB_HANDLER_SPLITLINK_MASTER
+            bool "Splitlink (master)"
+            depends on DT_HAS_KB_HANDLER_SPLITLINK_MASTER_ENABLED
+            select SPLITLINK
+
+    endchoice # KB_HANDLER_IMPL
+
+    module = KB_HANDLER
+    module-str = kb_handler
+    source "subsys/logging/Kconfig.template.log_config"
+
+    rsource "Kconfig.simple"
+    rsource "Kconfig.splitlink_master"
+    rsource "Kconfig.splitlink_slave"
+
+endif # KB_HANDLER

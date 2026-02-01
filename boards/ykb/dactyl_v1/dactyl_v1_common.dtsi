@@ -1,36 +1,37 @@
+#include <zephyr/dt-bindings/led/led.h>
 #include <dt-bindings/kb-handler/kb-key-codes.h>
 
 / {
 
     mux1: mux1 {
         compatible = "mux-gpio";
-        sel-gpios = <&gpio0 28 GPIO_ACTIVE_HIGH>,
-                    <&gpio0 28 GPIO_ACTIVE_HIGH>,
-                    <&gpio0 28 GPIO_ACTIVE_HIGH>;
+        sel-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 11 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 10 GPIO_ACTIVE_HIGH>;
         channels = <8>;
         #mux-cells = <0>;
     };
     mux2: mux2 {
         compatible = "mux-gpio";
-        sel-gpios = <&gpio0 28 GPIO_ACTIVE_HIGH>,
-                    <&gpio0 28 GPIO_ACTIVE_HIGH>,
-                    <&gpio0 28 GPIO_ACTIVE_HIGH>;
+        sel-gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 22 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 23 GPIO_ACTIVE_HIGH>;
         channels = <8>;
         #mux-cells = <0>;
     };
     mux3: mux3 {
         compatible = "mux-gpio";
-        sel-gpios = <&gpio0 28 GPIO_ACTIVE_HIGH>,
-                    <&gpio0 28 GPIO_ACTIVE_HIGH>,
-                    <&gpio0 28 GPIO_ACTIVE_HIGH>;
+        sel-gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 19 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 29 GPIO_ACTIVE_HIGH>;
         channels = <8>;
         #mux-cells = <0>;
     };
     mux4: mux4 {
         compatible = "mux-gpio";
-        sel-gpios = <&gpio0 28 GPIO_ACTIVE_HIGH>,
-                    <&gpio0 28 GPIO_ACTIVE_HIGH>,
-                    <&gpio0 28 GPIO_ACTIVE_HIGH>;
+        sel-gpios = <&gpio0 25 GPIO_ACTIVE_HIGH>,
+                    <&gpio1 9 GPIO_ACTIVE_HIGH>,
+                    <&gpio1 7 GPIO_ACTIVE_HIGH>;
         channels = <8>;
         #mux-cells = <0>;
     };
@@ -41,7 +42,7 @@
 
         // handles indexes [0-7], [8-15], [16-23], [24-31]
         idx-offset = <0>;
-        io-channels = <&adc 0>, <&adc 1>, <&adc 2>, <&adc 3>;
+        io-channels = <&adc 0>, <&adc 1>, <&adc 2>, <&adc 3>; // P0.04, P0.05, P0.06, P0.07
         muxes = <&mux1>, <&mux2>, <&mux3>, <&mux4>;
 
         settle-us = <3>;
@@ -61,7 +62,7 @@
 
         // handles indexes [32-33]
         idx-offset = <32>;
-        io-channels = <&adc 4>, <&adc 5>;
+        io-channels = <&adc 5>, <&adc 7>; // P0.26, P0.28
 
         settle-us = <3>;
         default-thresholds = <600>, <600>;
@@ -70,8 +71,6 @@
     };
 
     kb_handler: kb-handler {
-        // Generic compatible, overridden in left/right files.
-        compatible = "kb-handler-simple";
 
         kscans = <&kscan1>, <&kscan2>;
 
@@ -117,3 +116,19 @@
     };
 };
 
+&i2s0 {
+    status = "okay";
+    pinctrl-0 = <&i2s0_default>;
+    pinctrl-1 = <&i2s0_sleep>;
+    pinctrl-names = "default", "sleep";
+
+    led_strip: led_strip@0 {
+        compatible = "worldsemi,ws2812-i2s";
+        reg = <0>;
+        status = "okay";
+        chain-length = <34>;
+        color-mapping = <LED_COLOR_ID_GREEN
+                    LED_COLOR_ID_RED
+                    LED_COLOR_ID_BLUE>;
+    };
+};

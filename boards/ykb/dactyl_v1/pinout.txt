@@ -1,0 +1,46 @@
+P0.02
+P0.03
+P0.04 -> ADC channel 0 (MUX1 cmn)
+P0.05 -> ADC channel 1 (MUX2 cmn)
+P0.06 -> ADC channel 2 (MUX3 cmn)
+P0.07 -> ADC channel 3 (MUX4 cmn)
+P0.08
+P0.09 -> MUX2A
+P0.10 -> MUX1C
+P0.11 -> MUX1B
+P0.12 -> MUX1A
+P0.13
+P0.14
+P0.15
+P0.16
+P0.17
+P0.18
+P0.19 -> MUX3B
+P0.20
+P0.21 -> MUX3A
+P0.22 -> MUX2B
+P0.23 -> MUX2C
+P0.24
+P0.25 -> MUX4A
+P0.26 -> ADC channel 5 (single)
+P0.27
+P0.28 -> ADC channel 7 (single)
+P0.29 -> MUX3C
+P0.30
+P0.31
+P1.00
+P1.01
+P1.02 -> I2C SCL
+P1.03
+P1.04 -> I2C SDA
+P1.05
+P1.06
+P1.07 -> MUX4C
+P1.08
+P1.09 -> MUX4B
+P1.10
+P1.11 -> I2S SDOUT (Control LED strip)
+P1.12 -> I2S SCK (needed for I2S to work, left floating)
+P1.13 -> I2S LRCK (needed for I2S to work, left floating)
+P1.14
+P1.15

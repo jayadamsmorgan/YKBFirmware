@@ -1,5 +1,6 @@
 menu "Drivers"
-rsource "splitlink/Kconfig"
-rsource "kscan/Kconfig"
-rsource "mux/Kconfig"
+    rsource "kb_handler/Kconfig"
+    rsource "kscan/Kconfig"
+    rsource "mux/Kconfig"
+    rsource "splitlink/Kconfig"
 endmenu
