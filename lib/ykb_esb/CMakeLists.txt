@@ -1,0 +1,7 @@
+add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_REG src/ykb_esb_reg)
+add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_REG_RPC_CPUNET src/ykb_esb_reg)
+add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_REG_RPC_CPUAPP src/ykb_esb_reg)
+
+add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_MPSL src/ykb_esb_mpsl)
+add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_MPSL_RPC_CPUNET src/ykb_esb_mpsl)
+add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_MPSL_RPC_CPUAPP src/ykb_esb_mpsl)

@@ -1,0 +1,16 @@
+config KSCAN_MUXES
+    bool "Enable KScan driver for polling with multiplexors"
+    default y if DT_HAS_KSCAN_MUXES_ENABLED
+    select MUX
+
+if KSCAN_MUXES
+
+    config KSCAN_MUXES_THREAD_STACK_SIZE
+        int "KScan MUXes thread stack size (each channel)"
+        default 1024
+
+    config KSCAN_MUXES_THREAD_PRIORITY
+        int "KScan MUXes thread priority (each channel)"
+        default 15
+
+endif # KSCAN_MUXES

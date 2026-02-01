@@ -1,0 +1,4 @@
+zephyr_library()
+
+zephyr_library_sources_ifdef(CONFIG_SPLITLINK_ESB_MASTER master.c)
+zephyr_library_sources_ifdef(CONFIG_SPLITLINK_ESB_SLAVE  slave.c)

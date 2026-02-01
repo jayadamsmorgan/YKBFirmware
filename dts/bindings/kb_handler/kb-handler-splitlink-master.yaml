@@ -1,0 +1,16 @@
+title: KBHandler for Splitlink master device
+
+description: >
+  KBHandler driver binding for the Splitlink "master" device.
+  This device will act as a main keyboard, collecting keys from itself and "slave" device if it's connected,
+  processing them and then communicating with host (BT/USB).
+
+compatible: "kb-handler-splitlink-master"
+
+include: kb-handler.yaml
+
+properties:
+  key-count-slave:
+    type: int
+    required: true
+    description: Amount of keys for the "slave" device (other half).

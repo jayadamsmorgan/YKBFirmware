@@ -1,0 +1,30 @@
+title: KScan Muxes Instance
+
+description: >
+  A binding for a KScan instance which is polling hall effect sensors
+  by multiplexing either ADC channels or enable pins.
+  So the board configuration could be either:
+    - Hall effect sensors connected to the MUXes with ADC channels
+      and each MUX common pin acts as input for the ADC channel on the MCU.
+    - Hall effect sensors connected to the MUXes with enable pins
+      and each MUX common pin serves as output for selecting active sensor.
+  The second configuration requires 1 more pin on the MCU for the ADC channel (per MUX)
+  but it significantly reduces the power consuption, since only one sensor is active at a time (per MUX).
+  The more ADC channels (and, of course, corresponding MUXes) you have the more performance you can get
+  since you can read another channel while the other one is waiting settle-time.
+
+compatible: "kscan-muxes"
+
+include: kscan.yaml
+
+properties:
+  io-channels:
+    type: phandle-array
+    required: true
+    description: ADC channels used for each multiplexor. Should be equal to the amount of muxes.
+
+  muxes:
+    type: phandle-array
+    required: true
+    specifier-space: mux
+    description: MUXes used. Should be equal to the amount of io-channels and in the same order as corresponding io-channels.

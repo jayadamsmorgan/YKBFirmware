@@ -1,0 +1,38 @@
+# Common fields for KB Handler driver
+
+include: base.yaml
+
+properties:
+  kscans:
+    type: phandle-array
+    required: true
+    description: >
+      KScan instances for the KB Handler to manage.
+
+  key-count:
+    type: int
+    required: true
+    description: >
+      Amount of keys for current keyboard.
+      For split keyboards this is the amount of keys for the current half.
+
+  default-keymap-layer1:
+    type: array
+    required: true
+    description: >
+      Default key mappings used (layer 1).
+      Each key index reported from KScan instances will be handled with this mapping.
+      So match indexes from them to handle properly.
+      For regular keyboards should be the same length as key-count.
+      For split keyboards should be the same length as key-count + slave-key-count.
+
+  default-keymap-layer2:
+    type: array
+    required: false
+    description: >
+      Default key mappings used (layer 2).
+      Each key index reported from KScan instances will be handled with this mapping.
+      So match indexes from them to handle properly.
+      For regular keyboards should be the same length as key-count.
+      For split keyboards should be the same length as key-count + slave-key-count.
+

@@ -67,8 +67,8 @@ if(SB_CONFIG_SOC_NRF5340_CPUAPP)
   set(board_target_cpunet "${BOARD}/nrf5340/cpunet")
 
   ExternalZephyrProject_Add(
-    APPLICATION nrf5340_cpunet_mpsl
-    SOURCE_DIR ${APP_DIR}/../nrf5340_cpunet_mpsl
+    APPLICATION cpunet_mpsl
+    SOURCE_DIR ${APP_DIR}/../cpunet_mpsl
     BOARD ${board_target_cpunet}
     BOARD_REVISION ${BOARD_REVISION}
   )
@@ -77,9 +77,9 @@ if(SB_CONFIG_SOC_NRF5340_CPUAPP)
     list(APPEND PM_DOMAINS CPUNET)
   endif()
 
-  set_property(GLOBAL APPEND PROPERTY PM_CPUNET_IMAGES "nrf5340_cpunet_mpsl")
-  set_property(GLOBAL PROPERTY DOMAIN_APP_CPUNET "nrf5340_cpunet_mpsl")
-  set(CPUNET_PM_DOMAIN_DYNAMIC_PARTITION nrf5340_cpunet_mpsl CACHE INTERNAL "")
+  set_property(GLOBAL APPEND PROPERTY PM_CPUNET_IMAGES "cpunet_mpsl")
+  set_property(GLOBAL PROPERTY DOMAIN_APP_CPUNET "cpunet_mpsl")
+  set(CPUNET_PM_DOMAIN_DYNAMIC_PARTITION cpunet_mpsl CACHE INTERNAL "")
 endif()
 
 set_property(GLOBAL PROPERTY PM_DOMAINS ${PM_DOMAINS})

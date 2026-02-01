@@ -1,0 +1,16 @@
+config KSCAN_ENABLES
+    bool "Enable KScan driver for polling with enable pins"
+    default y if DT_HAS_KSCAN_ENABLES_ENABLED
+    select GPIO
+
+if KSCAN_ENABLES
+
+    config KSCAN_ENABLES_THREAD_STACK_SIZE
+        int "KScan Enables thread stack size"
+        default 1024
+
+    config KSCAN_ENABLES_THREAD_PRIORITY
+        int "KScan Enables thread priority"
+        default 15
+
+endif # KSCAN_ENABLES

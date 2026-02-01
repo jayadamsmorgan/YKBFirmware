@@ -1,5 +1,6 @@
 menu "Custom libraries"
 
 rsource "esb_ble_mpsl/Kconfig"
+rsource "ykb_esb/Kconfig"
 
 endmenu

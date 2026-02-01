@@ -1,4 +1,4 @@
-#include "timeslot_handler.h"
+#include <lib/esb_ble_mpsl.h>
 
 #include <hal/nrf_timer.h>
 

@@ -1,43 +1,27 @@
 #ifndef LIB_ESB_BLE_MPSL_H_
 #define LIB_ESB_BLE_MPSL_H_
 
+#include <stdint.h>
 #include <zephyr/kernel.h>
 
 typedef enum {
-    APP_ESB_EVT_TX_SUCCESS,
-    APP_ESB_EVT_TX_FAIL,
-    APP_ESB_EVT_RX
-} app_esb_event_type_t;
-typedef enum { APP_ESB_MODE_PTX, APP_ESB_MODE_PRX } app_esb_mode_t;
+    MPSL_ESB_EVT_TX_SUCCESS,
+    MPSL_ESB_EVT_TX_FAIL,
+    MPSL_ESB_EVT_RX
+} mpsl_esb_event_type_t;
 
 typedef struct {
-    app_esb_event_type_t evt_type;
+    mpsl_esb_event_type_t evt_type;
     uint8_t *buf;
     uint32_t data_length;
-} app_esb_event_t;
+} mpsl_esb_event_t;
 
-typedef struct {
-    uint8_t data[32];
-    uint32_t len;
-} app_esb_data_t;
+typedef void (*mpsl_esb_callback_t)(mpsl_esb_event_t *event);
 
-typedef struct {
-    app_esb_mode_t mode;
-} app_esb_config_t;
+typedef enum { APP_TS_STARTED, APP_TS_STOPPED } timeslot_callback_type_t;
 
-typedef void (*app_esb_callback_t)(app_esb_event_t *event);
+typedef void (*timeslot_callback_t)(timeslot_callback_type_t type);
 
-struct esb_simple_addr {
-    uint8_t base_0[4];
-    uint8_t base_1[4];
-    uint8_t prefix[8];
-};
-
-#if CONFIG_SOC_NRF5340_CPUNET
-
-// Enable RPMSG communication from the net core
-int mpsl_hci_rpmsg_init(void);
-
-#endif // CONFIG_SOC_NRF5340_CPUNET
+void timeslot_handler_init(timeslot_callback_t callback);
 
 #endif // LIB_ESB_BLE_MPSL_H_

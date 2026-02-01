@@ -1,0 +1,49 @@
+title: GPIO-Select Multiplexer
+
+description: >
+  Generic channel multiplexer controlled by a set of select GPIOs (and optional
+  enable GPIO). Channels are addressed by an integer index; the mapping from
+  index to select lines is binary unless channel-map is provided.
+
+compatible: "mux-gpio"
+
+include: base.yaml
+
+properties:
+  sel-gpios:
+    type: phandle-array
+    required: true
+    description: Select GPIOs, LSB first (idx 0 is bit0).
+
+  enable-gpios:
+    type: phandle-array
+    required: false
+    description: Optional enable/enable-bar pin.
+
+  channels:
+    type: int
+    required: false
+    description: >
+      Number of valid channels. If omitted, defaults to (2 ^ len(sel-gpios)).
+
+  settle-us:
+    type: int
+    required: false
+    description: Delay (microseconds) to wait after switching before use. If omitted, defaults to 0.
+
+  idle-channel:
+    type: int
+    required: false
+    description: >
+      Channel to select on initialization and disable event. If omitted, channel 0 is selected at init
+      and driver leaves last selected channel between disable/enable events.
+
+  channel-map:
+    type: array
+    required: false
+    description: >
+      Optional LUT: physical channel order -> binary code (one u32 per channel).
+      If present, should be the length of 'channels'. Values are the raw bit pattern
+      to drive on sel-gpios (LSB=idx 0).
+      Initialization will select the first channel in this order automatically unless idle-channel is present.
+      If both channel-map and idle-channel are omitted, initialization will select physical channel 0.

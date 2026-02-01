@@ -1,0 +1,37 @@
+menuconfig SPLITLINK
+    bool "Enable Splitlink"
+    default y if DT_HAS_SPLITLINK_SLAVE_ENABLED || DT_HAS_SPLITLINK_MASTER_ENABLED
+
+if SPLITLINK
+
+    module = SPLITLINK
+    module-str = splitlink
+    source "subsys/logging/Kconfig.template.log_config"
+
+    config SPLITLINK_ESB
+        bool "Enable Splitlink over ESB"
+        depends on LIB_YKB_ESB
+        default y if (DT_HAS_SPLITLINK_ESB_PTX_ENABLED || DT_HAS_SPLITLINK_ESB_PRX_ENABLED)
+
+    if SPLITLINK_ESB
+
+        choice SPLITLINK_ESB_ROLE
+            prompt "Splitlink over ESB role"
+            default SPLITLINK_ESB_PTX if DT_HAS_SPLITLINK_ESB_PTX_ENABLED
+            default SPLITLINK_ESB_PRX if DT_HAS_SPLITLINK_ESB_PRX_ENABLED
+
+            config SPLITLINK_ESB_PTX
+                bool "Enable Splitlink over ESB as PTX"
+
+            config SPLITLINK_ESB_PRX
+                bool "Enable Splitlink over ESB as PRX"
+
+        endchoice # SPLITLINK_ESB_ROLE
+
+        config SPLITLINK_ESB_NET_CORE_RPC
+            bool "ESB is managed by the other core with YKB ESB RPC"
+            default y if SOC_SERIES_NRF53X && LIB_ESB_BLE_MPSL
+
+    endif # SPLITLINK_ESB
+
+endif #SPLITLINK

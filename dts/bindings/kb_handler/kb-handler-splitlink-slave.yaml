@@ -1,0 +1,10 @@
+title: KBHandler for Splitlink slave device
+
+description: >
+  KBHandler driver binding for the Splitlink "slave" device.
+  This device will act as a secondary keyboard, collecting keys from itself
+  and send them to the Splitlink "master" device.
+
+compatible: "kb-handler-splitlink-slave"
+
+include: kb-handler.yaml

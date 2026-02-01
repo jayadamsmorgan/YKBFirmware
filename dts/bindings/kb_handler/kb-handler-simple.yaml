@@ -1,0 +1,10 @@
+title: KBHandler for simple KB device
+
+description: >
+  KBHandler driver binding for simple KB device.
+  This device will act as a keyboard, collecting keys from itself and
+  processing them and then communicating with host (BT/USB).
+
+compatible: "kb-handler-simple"
+
+include: kb-handler.yaml

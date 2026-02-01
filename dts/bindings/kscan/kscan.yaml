@@ -1,0 +1,24 @@
+# Common fields for KScan instances
+
+include: base.yaml
+
+properties:
+  idx-offset:
+    type: int
+    required: true
+    description: Index offset for reporting pressed/released keys. Should be >= 0.
+
+  default-thresholds:
+    type: array
+    required: true
+    description: >
+      Default ADC threshold values (10bit range).
+      Should map 1 to 1 to the total amount of keys managed by the current instance of KScan.
+
+  settle-us:
+    type: int
+    required: true
+    description: >
+      The amount of wait time (microseconds) needed between MUX channel switching.
+      This KScan instance will create a thread for each of the ADC channel and pass settle-time to the k_usleep() if not 0. Should be > 0.
+

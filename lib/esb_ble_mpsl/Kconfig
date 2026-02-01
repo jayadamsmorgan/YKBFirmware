@@ -1,41 +1,8 @@
 config LIB_ESB_BLE_MPSL
     bool "ESB + BLE MPSL Timeslot library"
-    depends on SOC_SERIES_NRF53X || SOC_SERIES_NRF52X
-    select LIB_ESB_BLE_MPSL_NRF53X_CPUNET if SOC_NRF5340_CPUNET
-    select LIB_ESB_BLE_MPSL_NRF53X_CPUAPP if SOC_NRF5340_CPUAPP
-    select LIB_ESB_BLE_MPSL_NRF52X if SOC_SERIES_NRF52X
-
-config LIB_ESB_BLE_MPSL_NRF53X_CPUNET
-    bool
-    depends on BT && ESB && MPSL
+    select MPSL
     select RING_BUFFER
     select DYNAMIC_INTERRUPTS
     select DYNAMIC_DIRECT_INTERRUPTS
     select ESB_DYNAMIC_INTERRUPTS
-    select IPC_SERVICE
     select MBOX
-    select BT_HCI_RAW
-    select NRF_RPC
-    select NRF_RPC_CBOR
-    select THREAD_CUSTOM_DATA
-
-config LIB_ESB_BLE_MPSL_NRF53X_CPUAPP
-    bool
-    depends on BT
-    select RING_BUFFER
-    select DYNAMIC_INTERRUPTS
-    select DYNAMIC_DIRECT_INTERRUPTS
-    select NRF_RPC
-    select NRF_RPC_CBOR
-    select THREAD_CUSTOM_DATA
-    select SOC_NRF53_CPUNET_ENABLE
-    select BT_PERIPHERAL
-
-config LIB_ESB_BLE_MPSL_NRF52X
-    bool
-    depends on BT && ESB && MPSL
-    select BT_PERIPHERAL
-    select RING_BUFFER
-    select DYNAMIC_INTERRUPTS
-    select DYNAMIC_DIRECT_INTERRUPTS
-    select ESB_DYNAMIC_INTERRUPTS

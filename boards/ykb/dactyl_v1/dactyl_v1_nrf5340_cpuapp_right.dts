@@ -2,9 +2,10 @@
 /dts-v1/;
 #include <nordic/nrf5340_cpuapp_qkaa.dtsi>
 #include "dactyl_v1_nrf5340_cpuapp_common.dts"
+#include "dactyl_v1_common.dtsi"
 
 / {
-	model = "YKB Dactyl V1 Left board";
+	model = "YKB Dactyl V1 Right board";
 	compatible = "ykb,dactyl-v1-nrf5340-cpuapp-right";
 
 	chosen {
@@ -14,6 +15,10 @@
 		zephyr,sram-secure-partition = &sram0_s;
 		zephyr,sram-non-secure-partition = &sram0_ns;
 	};
+
+    &kb_handler {
+        compatible = "kb-handler-splitlink-slave";
+    };
 };
 
 /* Include default memory partition configuration file */

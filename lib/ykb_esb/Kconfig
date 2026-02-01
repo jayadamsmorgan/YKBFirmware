@@ -1,0 +1,55 @@
+config LIB_YKB_ESB
+    bool "Enable YKB ESB library"
+
+if LIB_YKB_ESB
+
+    choice LIB_YKB_ESB_IMPL
+        prompt "YKB ESB implementation"
+        default LIB_YKB_ESB_IMPL_MPSL_RPC_CPUAPP if SOC_NRF5340_CPUAPP
+        default LIB_YKB_ESB_IMPL_MPSL_RPC_CPUNET if LIB_ESB_BLE_MPSL && SOC_NRF5340_CPUNET
+        default LIB_YKB_ESB_IMPL_MPSL if LIB_ESB_BLE_MPSL
+        default LIB_YKB_ESB_IMPL_REG_RPC_CPUNET if SOC_NRF5340_CPUNET
+        
+        config LIB_YKB_ESB_IMPL_REG
+            bool "Direct ESB"
+            select ESB
+
+        config LIB_YKB_ESB_IMPL_REG_RPC_CPUNET
+            bool "ESB RPC for CPUNET"
+            select ESB
+            select IPC_SERVICE
+            select NRF_RPC
+            select NRF_RPC_CBOR
+            select THREAD_CUSTOM_DATA
+
+        config LIB_YKB_ESB_IMPL_REG_RPC_CPUAPP
+            bool "ESB RPC for CPUAPP"
+            select IPC_SERVICE
+            select NRF_RPC
+            select NRF_RPC_CBOR
+            select THREAD_CUSTOM_DATA
+
+        config LIB_YKB_ESB_IMPL_MPSL
+            bool "ESB MPSL"
+            depends on LIB_ESB_BLE_MPSL
+            select ESB
+
+        config LIB_YKB_ESB_IMPL_MPSL_RPC_CPUNET
+            bool "ESB MPSL RPC for CPUNET"
+            depends on LIB_ESB_BLE_MPSL
+            select ESB
+            select IPC_SERVICE
+            select NRF_RPC
+            select NRF_RPC_CBOR
+            select THREAD_CUSTOM_DATA
+
+        config LIB_YKB_ESB_IMPL_MPSL_RPC_CPUAPP
+            bool "ESB MPSL RPC for CPUAPP"
+            select IPC_SERVICE
+            select NRF_RPC
+            select NRF_RPC_CBOR
+            select THREAD_CUSTOM_DATA
+
+    endchoice # LIB_YKB_ESB_IMPL
+
+endif # LIB_YKB_ESB
