@@ -1,4 +1,3 @@
-#include "zephyr/kernel.h"
 #define DT_DRV_COMPAT kscan_muxes
 
 #include "kscan_common.h"
@@ -71,10 +70,17 @@ static void kscan_muxes_thread(void *kscan_dev, void *chan_index, void *_) {
     int err = 0;
     int lerr = 0;
 
+    err = mux_select(mux, 0);
+    if (err < 0) {
+        LOG_ERR("[%d] Unable to select first channel on mux '%s' (err %d)",
+                chan_idx, mux->name, err);
+        return;
+    }
     err = mux_enable(mux);
     if (err < 0) {
         LOG_ERR("[%d] Unable to enable mux '%s' (err %d)", chan_idx, mux->name,
                 err);
+        return;
     }
 
     while (true) {

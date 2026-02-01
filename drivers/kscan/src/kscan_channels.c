@@ -1,4 +1,3 @@
-#include "zephyr/kernel.h"
 #define DT_DRV_COMPAT kscan_channels
 
 #include "kscan_common.h"
