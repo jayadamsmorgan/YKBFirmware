@@ -1,12 +1,12 @@
-#include <sys/errno.h>
+#include <stdint.h>
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/types.h>
 
-#include "lib/ykb_esb.h"
-#include "ykb_esb_mpsl_common.h"
-#include "zephyr/sys/__assert.h"
+#include <lib/ykb_esb.h>
+
+#include "../esb_rpc_ids.h"
 
 #include <mdk/nrf.h>
 
@@ -18,7 +18,7 @@
 
 #define CBOR_BUF_SIZE 16
 
-LOG_MODULE_REGISTER(rpc_app, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(ykb_esb, CONFIG_YKB_ESB_LOG_LEVEL);
 
 /* This defines a transport for our RPC command group.
  * Here we use the IPC transport (nrf_rpc_ipc.h):
@@ -45,38 +45,11 @@ NRF_RPC_IPC_TRANSPORT(esb_group_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)),
 NRF_RPC_GROUP_DEFINE(esb_group, "esb_group_id", &esb_group_tr, NULL, NULL,
                      NULL);
 
-static ykb_esb_on_receive on_receive = NULL;
-static app_esb_event_t m_event;
-static uint8_t m_rx_buf[32];
+#define CONFIG_ESB_MAX_PAYLOAD_LENGTH 32
 
-void on_esb_callback(app_esb_event_t *event) {
-    static uint32_t last_counter = 0;
-    static uint32_t counter;
-    switch (event->evt_type) {
-    case APP_ESB_EVT_TX_SUCCESS:
-        LOG_INF("ESB TX success");
-        break;
-    case APP_ESB_EVT_TX_FAIL:
-        LOG_INF("ESB TX failed");
-        break;
-    case APP_ESB_EVT_RX:
-        memcpy((uint8_t *)&counter, event->buf, sizeof(counter));
-        if (counter != (last_counter + 1)) {
-            LOG_WRN("Packet content error! Counter: %i, last counter %i",
-                    counter, last_counter);
-        }
-        LOG_INF("ESB RX: 0x%.2X-0x%.2X-0x%.2X-0x%.2X", event->buf[0],
-                event->buf[1], event->buf[2], event->buf[3]);
-        last_counter = counter;
-        if (on_receive) {
-            on_receive(event->buf, event->data_length);
-        }
-        break;
-    default:
-        LOG_ERR("Unknown APP ESB event!");
-        break;
-    }
-}
+static ykb_esb_callback_t m_callback;
+static ykb_esb_event_t m_event;
+static uint8_t m_rx_buf[CONFIG_ESB_MAX_PAYLOAD_LENGTH];
 
 /* - Pull an error code from the RPC CBOR buffer
  * - Place it in `handler_data`, retrieved in the ESB API and passed to the
@@ -105,15 +78,15 @@ static int decode_error(const struct nrf_rpc_group *group,
 static void rpc_rsp_handler(const struct nrf_rpc_group *group,
                             struct nrf_rpc_cbor_ctx *ctx, void *handler_data) {
     int err = decode_error(group, ctx, handler_data);
-    LOG_INF("rsp_handler addr ctx %x, error %i", (uint32_t)ctx, err);
+    LOG_DBG("rsp_handler addr ctx %x, error %i", (uint32_t)ctx, err);
     nrf_rpc_cbor_decoding_done(&esb_group, ctx);
 }
 
-static int rpc_esb_init(app_esb_config_t *p_config) {
+static int rpc_esb_init(ykb_esb_config_t *p_config) {
     int32_t err = 0;
     int err_rpc;
     struct nrf_rpc_cbor_ctx ctx;
-    size_t config_len = sizeof(app_esb_config_t);
+    size_t config_len = sizeof(ykb_esb_config_t);
 
     NRF_RPC_CBOR_ALLOC(&esb_group, ctx, CBOR_BUF_SIZE + config_len);
 
@@ -147,11 +120,11 @@ static int rpc_esb_init(app_esb_config_t *p_config) {
     }
 }
 
-static int rpc_esb_tx(app_esb_data_t *packet) {
+static int rpc_esb_tx(ykb_esb_data_t *packet) {
     int32_t err;
     int err_rpc;
     struct nrf_rpc_cbor_ctx ctx;
-    size_t packet_len = sizeof(app_esb_data_t);
+    size_t packet_len = sizeof(ykb_esb_data_t);
 
     NRF_RPC_CBOR_ALLOC(&esb_group, ctx, CBOR_BUF_SIZE + packet_len);
 
@@ -224,19 +197,20 @@ static void rpc_esb_event_handler(const struct nrf_rpc_group *group,
         }
     }
 
-    LOG_INF("evt_type %i, p_rx_payload length %i", evt_type, rx_payload_length);
+    // LOG_INF("evt_type %i, p_rx_payload length %i", evt_type,
+    // rx_payload_length);
 
     nrf_rpc_cbor_decoding_done(&esb_group, ctx);
 
     /* Notify the app new data has been received. */
     if (!err) {
-        LOG_DBG("decoding ok: rx_payload length %i", rx_payload_length);
+        // LOG_DBG("decoding ok: rx_payload length %i", rx_payload_length);
 
         // Call the event handler registered by the application
         m_event.evt_type = evt_type;
         m_event.buf = m_rx_buf;
         m_event.data_length = rx_payload_length;
-        on_esb_callback(&m_event);
+        m_callback(&m_event);
     } else {
         LOG_ERR("%s: decoding error %d", __func__, err);
     }
@@ -274,25 +248,21 @@ static int serialization_init(void) {
 
 SYS_INIT(serialization_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
 
-int ykb_esb_init(ykb_esb_init_config_t *config) {
-    on_receive = config->on_receive;
-    app_esb_config_t app_config = {
-        .callback = on_esb_callback,
-        .mode = config->mode,
-    };
-    memcpy(app_config.addr, config->addr, sizeof(app_config.addr));
-
-    return rpc_esb_init(&app_config);
+int ykb_esb_init(ykb_esb_mode_t mode, ykb_esb_callback_t callback,
+                 uint8_t base_addr_0[4], uint8_t base_addr_1[4]) {
+    static ykb_esb_config_t config;
+    config.mode = mode;
+    memcpy(config.base_addr_0, base_addr_0, sizeof(config.base_addr_0));
+    memcpy(config.base_addr_1, base_addr_1, sizeof(config.base_addr_1));
+    m_callback = callback;
+    int err = rpc_esb_init(&config);
+    if (err < 0) {
+        return err;
+    }
+    return 0;
 }
 
-int ykb_esb_send(uint8_t data[32], size_t data_len) {
-    if (data_len > 32) {
-        return -EINVAL;
-    }
-    app_esb_data_t packet;
-    memcpy(packet.data, data, data_len);
-    packet.len = data_len;
-
-    rpc_esb_tx(&packet);
+int ykb_esb_send(ykb_esb_data_t *tx_packet) {
+    rpc_esb_tx(tx_packet);
     return 0;
 }

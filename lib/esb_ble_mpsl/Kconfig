@@ -1,8 +1,0 @@
-config LIB_ESB_BLE_MPSL
-    bool "ESB + BLE MPSL Timeslot library"
-    select MPSL
-    select RING_BUFFER
-    select DYNAMIC_INTERRUPTS
-    select DYNAMIC_DIRECT_INTERRUPTS
-    select ESB_DYNAMIC_INTERRUPTS
-    select MBOX

@@ -4,4 +4,4 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(app LANGUAGES C)
 
-target_sources(app PRIVATE src/main.c src/hci_rpmsg_module.c)
+target_sources(app PRIVATE src/main.c src/bt_hci.c)

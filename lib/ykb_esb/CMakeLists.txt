@@ -1,7 +1,17 @@
-add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_REG src/ykb_esb_reg)
-add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_REG_RPC_CPUNET src/ykb_esb_reg)
-add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_REG_RPC_CPUAPP src/ykb_esb_reg)
+zephyr_library()
 
-add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_MPSL src/ykb_esb_mpsl)
-add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_MPSL_RPC_CPUNET src/ykb_esb_mpsl)
-add_subdirectory_ifdef(LIB_YKB_ESB_IMPL_MPSL_RPC_CPUAPP src/ykb_esb_mpsl)
+zephyr_library_sources_ifdef(
+    CONFIG_SOC_NRF5340_CPUNET
+    src/ykb_esb.c
+    src/53_net/esb_53.c
+)
+
+zephyr_library_sources_ifdef(
+    CONFIG_SOC_NRF5340_CPUAPP
+    src/53_app/esb_53.c
+)
+
+zephyr_library_sources_ifdef(
+    CONFIG_SOC_SERIES_NRF52X
+    src/ykb_esb.c
+)

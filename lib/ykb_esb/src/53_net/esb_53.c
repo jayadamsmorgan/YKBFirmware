@@ -1,28 +1,25 @@
-#include <lib/ykb_esb.h>
-
-#include <lib/esb_ble_mpsl.h>
-
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/types.h>
 
-#include "ykb_esb_mpsl_common.h"
+#include "../esb_rpc_ids.h"
+#include <lib/ykb_esb.h>
 
 #include <esb.h>
 #include <mdk/nrf.h>
 
 #include <nrf_rpc/nrf_rpc_ipc.h>
 #include <nrf_rpc_cbor.h>
-
 #include <zcbor_common.h>
 #include <zcbor_decode.h>
 #include <zcbor_encode.h>
 
 #define CBOR_BUF_SIZE 16
 
-LOG_MODULE_REGISTER(rpc_net, LOG_LEVEL_DBG);
+LOG_MODULE_REGISTER(ykb_esb_rpc, CONFIG_YKB_ESB_LOG_LEVEL);
 
+/* See rpc_app.c (in the cpuapp/ dir) for an explanation. */
 NRF_RPC_IPC_TRANSPORT(esb_group_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)),
                       "nrf_rpc_ept");
 NRF_RPC_GROUP_DEFINE(esb_group, "esb_group_id", &esb_group_tr, NULL, NULL,
@@ -42,17 +39,17 @@ K_WORK_DEFINE(m_work_send_evt_rx_received, work_send_evt_rx_received_func);
 static uint8_t *last_rx_buf;
 static uint32_t last_rx_length;
 
-void on_esb_callback(app_esb_event_t *event) {
+void on_esb_callback(ykb_esb_event_t *event) {
     switch (event->evt_type) {
-    case APP_ESB_EVT_TX_SUCCESS:
+    case YKB_ESB_EVT_TX_SUCCESS:
         LOG_INF("ESB TX success");
         k_work_submit(&m_work_send_evt_tx_success);
         break;
-    case APP_ESB_EVT_TX_FAIL:
+    case YKB_ESB_EVT_TX_FAIL:
         LOG_INF("ESB TX failed");
         k_work_submit(&m_work_send_evt_tx_fail);
         break;
-    case APP_ESB_EVT_RX:
+    case YKB_ESB_EVT_RX:
         LOG_INF("ESB RX: 0x%.2x-0x%.2x-0x%.2x-0x%.2x", event->buf[0],
                 event->buf[1], event->buf[2], event->buf[3]);
         last_rx_buf = event->buf;
@@ -66,15 +63,15 @@ void on_esb_callback(app_esb_event_t *event) {
 }
 
 static void work_send_evt_tx_success_func(struct k_work *item) {
-    rpc_esb_event_send(APP_ESB_EVT_TX_SUCCESS, 0, 0);
+    rpc_esb_event_send(YKB_ESB_EVT_TX_SUCCESS, 0, 0);
 }
 
 static void work_send_evt_tx_fail_func(struct k_work *item) {
-    rpc_esb_event_send(APP_ESB_EVT_TX_FAIL, 0, 0);
+    rpc_esb_event_send(YKB_ESB_EVT_TX_FAIL, 0, 0);
 }
 
 static void work_send_evt_rx_received_func(struct k_work *item) {
-    rpc_esb_event_send(APP_ESB_EVT_RX, last_rx_buf, last_rx_length);
+    rpc_esb_event_send(YKB_ESB_EVT_RX, last_rx_buf, last_rx_length);
 }
 
 static int decode_struct(struct nrf_rpc_cbor_ctx *ctx, void *struct_ptr,
@@ -125,8 +122,10 @@ static void rpc_rsp(int32_t err) {
 static void rpc_esb_init_handler(const struct nrf_rpc_group *group,
                                  struct nrf_rpc_cbor_ctx *ctx,
                                  void *handler_data) {
+    LOG_DBG("");
+
     int32_t err = 0;
-    app_esb_config_t config;
+    ykb_esb_config_t config;
 
     if (decode_struct(ctx, &config, sizeof(config))) {
         LOG_DBG("decoding config struct failed");
@@ -146,11 +145,11 @@ static void rpc_esb_init_handler(const struct nrf_rpc_group *group,
     nrf_rpc_cbor_decoding_done(group, ctx);
 
     if (!err) {
-        LOG_DBG("app_esb_init. Mode %i", config.mode);
-        config.callback = on_esb_callback;
-        err = app_esb_init(config);
+        LOG_DBG("ykb_esb_init. Mode %i", config.mode);
+        err = ykb_esb_init(config.mode, on_esb_callback, config.base_addr_0,
+                           config.base_addr_1);
         if (err) {
-            LOG_ERR("esb init failed (err %d)", err);
+            LOG_ERR("ykb_esb init failed (err %d)", err);
         }
     }
 
@@ -162,10 +161,10 @@ static void rpc_esb_tx_handler(const struct nrf_rpc_group *group,
                                struct nrf_rpc_cbor_ctx *ctx,
                                void *handler_data) {
     int err = 0;
-    app_esb_data_t tx_payload;
+    ykb_esb_data_t tx_payload;
 
     if (decode_struct(ctx, &tx_payload, sizeof(tx_payload))) {
-        LOG_DBG("decoding app_esb_data_t struct failed");
+        LOG_DBG("decoding ykb_esb_data_t struct failed");
         err = -EBADMSG;
     }
 
@@ -174,9 +173,9 @@ static void rpc_esb_tx_handler(const struct nrf_rpc_group *group,
     if (!err) {
         LOG_INF("Send TX packet, data 0 0x%.2x, len %i", tx_payload.data[0],
                 tx_payload.len);
-        err = app_esb_send(&tx_payload);
+        err = ykb_esb_send(&tx_payload);
         if (err < 0) {
-            LOG_ERR("app_esb_send: error %i", err);
+            LOG_ERR("ykb_esb_send: error %i", err);
         }
     }
 
@@ -250,11 +249,6 @@ static int serialization_init(void) {
 
     LOG_DBG("nRF RPC init ok");
 
-    return 0;
-}
-
-int ykb_esb_init(ykb_esb_init_config_t *config) {
-    //
     return 0;
 }
 

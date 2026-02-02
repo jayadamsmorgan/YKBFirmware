@@ -1,9 +1,10 @@
-#include <lib/esb_ble_mpsl.h>
+#include "mdk/nrf5340_network.h"
+
+#include <lib/ykb_timeslot.h>
 
 #include <hal/nrf_timer.h>
 
 #include <mdk/nrf.h>
-
 #include <mpsl.h>
 #include <mpsl_timeslot.h>
 
@@ -16,7 +17,7 @@
 
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(timeslot, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(ykb_timeslot, CONFIG_YKB_TIMESLOT_LOG_LEVEL);
 
 #define TIMESLOT_REQUEST_TIMEOUT_US 1000000
 #define TIMESLOT_LENGTH_US 10000

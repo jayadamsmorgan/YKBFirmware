@@ -1,5 +1,3 @@
-#include "hci_rpmsg_module.h"
-
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -22,14 +20,17 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/logging/log_ctrl.h>
 
-LOG_MODULE_REGISTER(hci_rpmsg, LOG_LEVEL_INF); // CONFIG_BT_LOG_LEVEL);
+LOG_MODULE_REGISTER(hci_ipc, CONFIG_BT_LOG_LEVEL);
+
+BUILD_ASSERT(!IS_ENABLED(CONFIG_BT_CONN) ||
+                 IS_ENABLED(CONFIG_BT_HCI_ACL_FLOW_CONTROL),
+             "HCI IPC driver can drop ACL data without Controller-to-Host ACL "
+             "flow control");
 
 static struct ipc_ept hci_ept;
 
 static K_THREAD_STACK_DEFINE(tx_thread_stack, CONFIG_BT_HCI_TX_STACK_SIZE);
 static struct k_thread tx_thread_data;
-static K_THREAD_STACK_DEFINE(rx_thread_stack, 1024);
-static struct k_thread rx_thread_data;
 static K_FIFO_DEFINE(tx_queue);
 static K_SEM_DEFINE(ipc_bound_sem, 0, 1);
 #if defined(CONFIG_BT_CTLR_ASSERT_HANDLER) ||                                  \
@@ -40,16 +41,16 @@ static K_SEM_DEFINE(ipc_bound_sem, 0, 1);
 static bool ipc_ept_ready;
 #endif /* CONFIG_BT_CTLR_ASSERT_HANDLER || CONFIG_BT_HCI_VS_FATAL_ERROR */
 
-#define HCI_RPMSG_CMD 0x01
-#define HCI_RPMSG_ACL 0x02
-#define HCI_RPMSG_SCO 0x03
-#define HCI_RPMSG_EVT 0x04
-#define HCI_RPMSG_ISO 0x05
+#define HCI_IPC_CMD 0x01
+#define HCI_IPC_ACL 0x02
+#define HCI_IPC_SCO 0x03
+#define HCI_IPC_EVT 0x04
+#define HCI_IPC_ISO 0x05
 
 #define HCI_FATAL_ERR_MSG true
 #define HCI_REGULAR_MSG false
 
-static struct net_buf *hci_rpmsg_cmd_recv(uint8_t *data, size_t remaining) {
+static struct net_buf *hci_ipc_cmd_recv(uint8_t *data, size_t remaining) {
     struct bt_hci_cmd_hdr *hdr = (void *)data;
     struct net_buf *buf;
 
@@ -85,7 +86,7 @@ static struct net_buf *hci_rpmsg_cmd_recv(uint8_t *data, size_t remaining) {
     return buf;
 }
 
-static struct net_buf *hci_rpmsg_acl_recv(uint8_t *data, size_t remaining) {
+static struct net_buf *hci_ipc_acl_recv(uint8_t *data, size_t remaining) {
     struct bt_hci_acl_hdr *hdr = (void *)data;
     struct net_buf *buf;
 
@@ -121,7 +122,7 @@ static struct net_buf *hci_rpmsg_acl_recv(uint8_t *data, size_t remaining) {
     return buf;
 }
 
-static struct net_buf *hci_rpmsg_iso_recv(uint8_t *data, size_t remaining) {
+static struct net_buf *hci_ipc_iso_recv(uint8_t *data, size_t remaining) {
     struct bt_hci_iso_hdr *hdr = (void *)data;
     struct net_buf *buf;
 
@@ -157,27 +158,27 @@ static struct net_buf *hci_rpmsg_iso_recv(uint8_t *data, size_t remaining) {
     return buf;
 }
 
-static void hci_rpmsg_rx(uint8_t *data, size_t len) {
+static void hci_ipc_rx(uint8_t *data, size_t len) {
     uint8_t pkt_indicator;
     struct net_buf *buf = NULL;
     size_t remaining = len;
 
-    LOG_HEXDUMP_DBG(data, len, "RPMSG data:");
+    LOG_HEXDUMP_DBG(data, len, "IPC data:");
 
     pkt_indicator = *data++;
     remaining -= sizeof(pkt_indicator);
 
     switch (pkt_indicator) {
-    case HCI_RPMSG_CMD:
-        buf = hci_rpmsg_cmd_recv(data, remaining);
+    case HCI_IPC_CMD:
+        buf = hci_ipc_cmd_recv(data, remaining);
         break;
 
-    case HCI_RPMSG_ACL:
-        buf = hci_rpmsg_acl_recv(data, remaining);
+    case HCI_IPC_ACL:
+        buf = hci_ipc_acl_recv(data, remaining);
         break;
 
-    case HCI_RPMSG_ISO:
-        buf = hci_rpmsg_iso_recv(data, remaining);
+    case HCI_IPC_ISO:
+        buf = hci_ipc_iso_recv(data, remaining);
         break;
 
     default:
@@ -213,34 +214,11 @@ static void tx_thread(void *p1, void *p2, void *p3) {
     }
 }
 
-static void hci_rpmsg_send(struct net_buf *buf, bool is_fatal_err) {
-    uint8_t pkt_indicator;
+static void hci_ipc_send(struct net_buf *buf, bool is_fatal_err) {
     uint8_t retries = 0;
     int ret;
 
-    enum bt_buf_type type =
-        bt_buf_type_from_h4(net_buf_pull_u8(buf), BT_BUF_OUT);
-
-    LOG_DBG("buf %p type %u len %u", buf, type, buf->len);
-
-    LOG_HEXDUMP_DBG(buf->data, buf->len, "Controller buffer:");
-
-    switch (type) {
-    case BT_BUF_ACL_IN:
-        pkt_indicator = HCI_RPMSG_ACL;
-        break;
-    case BT_BUF_EVT:
-        pkt_indicator = HCI_RPMSG_EVT;
-        break;
-    case BT_BUF_ISO_IN:
-        pkt_indicator = HCI_RPMSG_ISO;
-        break;
-    default:
-        LOG_ERR("Unknown type %u", type);
-        net_buf_unref(buf);
-        return;
-    }
-    net_buf_push_u8(buf, pkt_indicator);
+    LOG_DBG("buf %p type %u len %u", buf, buf->data[0], buf->len);
 
     LOG_HEXDUMP_DBG(buf->data, buf->len, "Final HCI buffer:");
 
@@ -265,38 +243,25 @@ static void hci_rpmsg_send(struct net_buf *buf, bool is_fatal_err) {
              * against it.
              */
             if (is_fatal_err) {
-                LOG_ERR("IPC service send error: %d", ret);
+                LOG_ERR("ipc_service_send error: %d", ret);
             } else {
+                /* In the POSIX ARCH, code takes zero simulated time to execute,
+                 * so busy wait loops become infinite loops, unless we
+                 * force the loop to take a bit of time.
+                 *
+                 * This delay allows the IPC consumer to execute, thus making
+                 * it possible to send more data over IPC afterwards.
+                 */
+                Z_SPIN_DELAY(500);
                 k_yield();
             }
         }
     } while (ret < 0);
 
-    LOG_DBG("Sent message of %d bytes.", ret);
+    LOG_INF("ipc_service_send sent %d/%u bytes", ret, buf->len);
+    __ASSERT_NO_MSG(ret == buf->len);
 
     net_buf_unref(buf);
-}
-
-/* incoming events and data from the controller */
-static K_FIFO_DEFINE(rx_queue);
-
-static void rx_thread(void *p1, void *p2, void *p3) {
-    /* incoming events and data from the controller */
-    // static K_FIFO_DEFINE(rx_queue);
-
-    k_sem_take(&ipc_bound_sem, K_FOREVER);
-
-    /* Enable the raw interface, this will in turn open the HCI driver */
-    // bt_enable_raw(&rx_queue);
-
-    while (1) {
-        struct net_buf *buf;
-
-        buf = k_fifo_get(&rx_queue, K_FOREVER);
-        NRF_P0->OUTSET = BIT(30);
-        hci_rpmsg_send(buf, HCI_REGULAR_MSG);
-        NRF_P0->OUTCLR = BIT(30);
-    }
 }
 
 #if defined(CONFIG_BT_CTLR_ASSERT_HANDLER)
@@ -313,8 +278,8 @@ void bt_ctlr_assert_handle(char *file, uint32_t line) {
 
         buf = hci_vs_err_assert(file, line);
         if (buf != NULL) {
-            /* Send the event over rpmsg */
-            hci_rpmsg_send(buf, HCI_FATAL_ERR_MSG);
+            /* Send the event over ipc */
+            hci_ipc_send(buf, HCI_FATAL_ERR_MSG);
         } else {
             LOG_ERR("Can't create Fatal Error HCI event: %s at %d", __FILE__,
                     __LINE__);
@@ -334,12 +299,16 @@ void bt_ctlr_assert_handle(char *file, uint32_t line) {
     LOG_PANIC();
 
     while (true) {
+        k_cpu_idle();
     };
+
+    CODE_UNREACHABLE;
 }
 #endif /* CONFIG_BT_CTLR_ASSERT_HANDLER */
 
 #if defined(CONFIG_BT_HCI_VS_FATAL_ERROR)
-void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
+void k_sys_fatal_error_handler(unsigned int reason,
+                               const struct arch_esf *esf) {
     /* Disable interrupts, this is unrecoverable */
     (void)irq_lock();
 
@@ -352,7 +321,7 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
 
         buf = hci_vs_err_stack_frame(reason, esf);
         if (buf != NULL) {
-            hci_rpmsg_send(buf, HCI_FATAL_ERR_MSG);
+            hci_ipc_send(buf, HCI_FATAL_ERR_MSG);
         } else {
             LOG_ERR("Can't create Fatal Error HCI event.\n");
         }
@@ -364,6 +333,7 @@ void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
     LOG_PANIC();
 
     while (true) {
+        k_cpu_idle();
     };
 
     CODE_UNREACHABLE;
@@ -379,8 +349,8 @@ static void hci_ept_bound(void *priv) {
 }
 
 static void hci_ept_recv(const void *data, size_t len, void *priv) {
-    LOG_DBG("Received message of %u bytes.", len);
-    hci_rpmsg_rx((uint8_t *)data, len);
+    LOG_INF("Received message of %u bytes.", len);
+    hci_ipc_rx((uint8_t *)data, len);
 }
 
 static struct ipc_ept_cfg hci_ept_cfg = {
@@ -392,9 +362,13 @@ static struct ipc_ept_cfg hci_ept_cfg = {
         },
 };
 
-int hci_rpmsg_init(void) {
+int bt_hci_init(void) {
     int err;
-    const struct device *hci_ipc_instance = DEVICE_DT_GET(DT_NODELABEL(ipc0));
+    const struct device *hci_ipc_instance =
+        DEVICE_DT_GET(DT_CHOSEN(zephyr_bt_hci_ipc));
+
+    /* incoming events and data from the controller */
+    static K_FIFO_DEFINE(rx_queue);
 
     LOG_DBG("Start");
 
@@ -407,14 +381,7 @@ int hci_rpmsg_init(void) {
     k_thread_create(&tx_thread_data, tx_thread_stack,
                     K_THREAD_STACK_SIZEOF(tx_thread_stack), tx_thread, NULL,
                     NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
-    k_thread_name_set(&tx_thread_data, "HCI rpmsg TX");
-
-    /* Spawn the RX thread
-     */
-    k_thread_create(&rx_thread_data, rx_thread_stack,
-                    K_THREAD_STACK_SIZEOF(rx_thread_stack), rx_thread, NULL,
-                    NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
-    k_thread_name_set(&rx_thread_data, "HCI rpmsg RX");
+    k_thread_name_set(&tx_thread_data, "HCI ipc TX");
 
     /* Initialize IPC service instance and register endpoint. */
     err = ipc_service_open_instance(hci_ipc_instance);
@@ -428,19 +395,13 @@ int hci_rpmsg_init(void) {
         LOG_ERR("Registering endpoint failed with %d", err);
     }
 
-    return 0;
-}
-
-int hci_rpmsg_run(void) {
     k_sem_take(&ipc_bound_sem, K_FOREVER);
 
     while (1) {
         struct net_buf *buf;
 
         buf = k_fifo_get(&rx_queue, K_FOREVER);
-        hci_rpmsg_send(buf, HCI_REGULAR_MSG);
-        NRF_P0->OUT ^= BIT(30);
+        hci_ipc_send(buf, HCI_REGULAR_MSG);
     }
-
     return 0;
 }

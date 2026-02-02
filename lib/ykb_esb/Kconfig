@@ -1,55 +1,56 @@
-config LIB_YKB_ESB
+menuconfig LIB_YKB_ESB
     bool "Enable YKB ESB library"
+    depends on SOC_SERIES_NRF53X || SOC_SERIES_NRF52X
+    select LIB_YKB_ESB_IMPL
 
 if LIB_YKB_ESB
 
-    choice LIB_YKB_ESB_IMPL
-        prompt "YKB ESB implementation"
-        default LIB_YKB_ESB_IMPL_MPSL_RPC_CPUAPP if SOC_NRF5340_CPUAPP
-        default LIB_YKB_ESB_IMPL_MPSL_RPC_CPUNET if LIB_ESB_BLE_MPSL && SOC_NRF5340_CPUNET
-        default LIB_YKB_ESB_IMPL_MPSL if LIB_ESB_BLE_MPSL
-        default LIB_YKB_ESB_IMPL_REG_RPC_CPUNET if SOC_NRF5340_CPUNET
-        
-        config LIB_YKB_ESB_IMPL_REG
-            bool "Direct ESB"
-            select ESB
+    module = YKB_ESB
+    module-str = ykb_esb
+    source "subsys/logging/Kconfig.template.log_config"
 
-        config LIB_YKB_ESB_IMPL_REG_RPC_CPUNET
-            bool "ESB RPC for CPUNET"
-            select ESB
-            select IPC_SERVICE
-            select NRF_RPC
-            select NRF_RPC_CBOR
-            select THREAD_CUSTOM_DATA
+    config LIB_YKB_ESB_FAST_RAMP_UP
+        bool "Enable ESB Fast Ramp Up"
+        depends on !SOC_NRF5340_CPUAPP
+        default y
+        help
+          When this feature is enabled, radio TXEN and RXEN delays are reduced from 130 µs to 40 µs.
+          The radio peripheral needs some time to start up analog components of the radio.
+          On the nRF51 and nRF24L Series devices, a hard-coded 130 µs delay is implemented.
+          If ESB connection is achieved only between nRF52 and/or nRF53 Series devices, this delay can be reduced to 40 µs.
 
-        config LIB_YKB_ESB_IMPL_REG_RPC_CPUAPP
-            bool "ESB RPC for CPUAPP"
-            select IPC_SERVICE
-            select NRF_RPC
-            select NRF_RPC_CBOR
-            select THREAD_CUSTOM_DATA
+    config LIB_YKB_ESB_MPSL
+        bool "Enable support for using with YKB Timeslot library"
+        depends on !SOC_NRF5340_CPUAPP
+        default y if BT
+        select LIB_YKB_TIMESLOT
 
-        config LIB_YKB_ESB_IMPL_MPSL
-            bool "ESB MPSL"
-            depends on LIB_ESB_BLE_MPSL
-            select ESB
+    config LIB_YKB_ESB_IMPL
+        bool
+        select LIB_YKB_ESB_IMPL_NORMAL if SOC_SERIES_NRF52X
+        select LIB_YKB_ESB_IMPL_NRF53 if SOC_SERIES_NRF53X
+        select RING_BUFFER
+        select DYNAMIC_INTERRUPTS
+        select DYNAMIC_DIRECT_INTERRUPTS
 
-        config LIB_YKB_ESB_IMPL_MPSL_RPC_CPUNET
-            bool "ESB MPSL RPC for CPUNET"
-            depends on LIB_ESB_BLE_MPSL
-            select ESB
-            select IPC_SERVICE
-            select NRF_RPC
-            select NRF_RPC_CBOR
-            select THREAD_CUSTOM_DATA
+    config LIB_YKB_ESB_IMPL_NRF53
+        bool
+        select IPC_SERVICE
+        select MBOX
+        select NRF_RPC
+        select NRF_RPC_CBOR
+        select THREAD_CUSTOM_DATA
+        select LIB_YKB_ESB_IMPL_NORMAL if SOC_NRF5340_CPUNET
+        select LIB_YKB_ESB_IMPL_NRF53_APP if SOC_NRF5340_CPUAPP
 
-        config LIB_YKB_ESB_IMPL_MPSL_RPC_CPUAPP
-            bool "ESB MPSL RPC for CPUAPP"
-            select IPC_SERVICE
-            select NRF_RPC
-            select NRF_RPC_CBOR
-            select THREAD_CUSTOM_DATA
+    config LIB_YKB_ESB_IMPL_NORMAL
+        bool
+        select ESB
+        select ESB_DYNAMIC_INTERRUPTS
+        select MPSL
 
-    endchoice # LIB_YKB_ESB_IMPL
+    config LIB_YKB_ESB_IMPL_NRF53_APP
+        bool
+        select SOC_NRF53_CPUNET_ENABLE
 
 endif # LIB_YKB_ESB

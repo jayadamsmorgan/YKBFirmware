@@ -39,9 +39,8 @@ K_THREAD_STACK_DEFINE(kb_handler_thread_stack,
 
 static void kb_handler_thread(void *device, void *_, void *__) {
     struct kbh_event event;
-    CONFIG_MAIN_STACK_SIZE;
 
-    uint8_t buffer[8];
+    // uint8_t buffer[8];
 
     while (true) {
         int err = k_msgq_get(&kbh_event_msgq, &event, K_FOREVER);
@@ -81,7 +80,7 @@ static struct k_thread thread;
 static int kb_handler_sm_init(const struct device *dev) {
     k_thread_create(&thread, kb_handler_thread_stack,
                     CONFIG_KB_HANDLER_THREAD_STACK_SIZE, kb_handler_thread,
-                    (void *)dev, NULL, NULL, 5, 0, K_NO_WAIT);
+                    (void *)dev, NULL, NULL, 15, 0, K_NO_WAIT);
     k_thread_name_set(&thread, "kb_handler_sm");
     //
     return 0;

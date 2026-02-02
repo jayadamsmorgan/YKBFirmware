@@ -1,0 +1,11 @@
+menuconfig LIB_YKB_TIMESLOT
+    bool "Enable YKB timeslot library for concurrent BT + ESB"
+    depends on SOC_SERIES_NRF52X || SOC_NRF5340_CPUNET
+
+if LIB_YKB_TIMESLOT
+
+    module = YKB_TIMESLOT
+    module-str = ykb_timeslot
+    source "subsys/logging/Kconfig.template.log_config"
+
+endif # LIB_YKB_TIMESLOT
