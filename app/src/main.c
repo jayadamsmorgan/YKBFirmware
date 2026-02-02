@@ -24,19 +24,19 @@ int main(void) {
 
     pixels[0].r = 0;
     pixels[0].g = 0;
-    pixels[0].b = 255;
+    pixels[0].b = 10;
     pixels[1].r = 0;
-    pixels[1].g = 255;
+    pixels[1].g = 10;
     pixels[1].b = 0;
-    pixels[2].r = 255;
+    pixels[2].r = 10;
     pixels[2].g = 0;
     pixels[2].b = 0;
-    pixels[3].r = 255;
-    pixels[3].g = 255;
+    pixels[3].r = 10;
+    pixels[3].g = 10;
     pixels[3].b = 0;
     pixels[4].r = 0;
-    pixels[4].g = 255;
-    pixels[4].b = 255;
+    pixels[4].g = 10;
+    pixels[4].b = 10;
 
     while (true) {
         struct led_rgb tmp = pixels[0];
