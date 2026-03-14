@@ -9,10 +9,13 @@ if LIB_YKB_ESB
     module-str = ykb_esb
     source "subsys/logging/Kconfig.template.log_config"
 
+    config ESB_MAX_PAYLOAD_LENGTH
+        default 252 # Maxxing
+
     config LIB_YKB_ESB_FAST_RAMP_UP
         bool "Enable ESB Fast Ramp Up"
         depends on !SOC_NRF5340_CPUAPP
-        default y
+        default n
         help
           When this feature is enabled, radio TXEN and RXEN delays are reduced from 130 µs to 40 µs.
           The radio peripheral needs some time to start up analog components of the radio.

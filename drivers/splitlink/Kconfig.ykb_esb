@@ -1,0 +1,52 @@
+config SPLITLINK_YKB_ESB
+    bool "Enable Splitlink over ESB"
+    default y if (DT_HAS_SPLITLINK_YKB_ESB_PTX_ENABLED || DT_HAS_SPLITLINK_YKB_ESB_PRX_ENABLED)
+    select LIB_YKB_ESB
+
+if SPLITLINK_YKB_ESB
+
+    choice SPLITLINK_YKB_ESB_ROLE
+        prompt "Splitlink over ESB role"
+        default SPLITLINK_YKB_ESB_PTX if DT_HAS_SPLITLINK_YKB_ESB_PTX_ENABLED
+        default SPLITLINK_YKB_ESB_PRX if DT_HAS_SPLITLINK_YKB_ESB_PRX_ENABLED
+
+        config SPLITLINK_YKB_ESB_PTX
+            bool "Enable Splitlink over ESB as PTX"
+
+        config SPLITLINK_YKB_ESB_PRX
+            bool "Enable Splitlink over ESB as PRX"
+
+    endchoice # SPLITLINK_YKB_ESB_ROLE
+
+    config SPLITLINK_YKB_ESB_MAX_PACKETS
+        int "Maximum amount of packets allowed to be sent/received"
+        default 30
+
+    config SPLITLINK_YKB_ESB_ALIVE_TIMEOUT
+        int "Time after last incoming packet after which disconnect is triggered (ms)"
+        default 200
+        range 2 1000
+
+    config SPLITLINK_YKB_ESB_MAX_ACTIVE_STREAMS
+        int "Max amount of concurrent streams"
+        default 3
+        range 1 10
+
+    if SPLITLINK_YKB_ESB_PTX
+
+        config SPLITLINK_YKB_ESB_PTX_ALIVE_THREAD_STACK_SIZE
+            int "'Alive' PTX thread stack size"
+            default 1024
+
+        config SPLITLINK_YKB_ESB_PTX_ALIVE_THREAD_PRIORITY
+            int "'Alive' PTX thread priority"
+            default 5
+
+        config SPLITLINK_YKB_ESB_PTX_ALIVE_THREAD_TIME
+            int "Time between 'Alive' packets (ms)"
+            default 50
+            range 1 SPLITLINK_YKB_ESB_ALIVE_TIMEOUT
+
+    endif # SPLITLINK_YKB_ESB_PTX
+
+endif # SPLITLINK_YKB_ESB

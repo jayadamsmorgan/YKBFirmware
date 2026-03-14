@@ -7,7 +7,7 @@ description: >
 
 compatible: "kb-handler-splitlink-master"
 
-include: kb-handler.yaml
+include: kb-handler-splitlink.yaml
 
 properties:
   key-count-slave:

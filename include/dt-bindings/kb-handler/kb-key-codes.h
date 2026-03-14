@@ -235,7 +235,7 @@
 
 #define KEY_FN 0xE8
 
-#define KEY_LAYER 0xE9
-#define KEY_LAYER_SWITCH 0xEA
+#define KEY_LAYER1 0xE9
+#define KEY_LAYER2 0xEA
 
 #endif // __DT_BINDINGS_KB_KEY_CODES_H_

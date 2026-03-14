@@ -1,0 +1,48 @@
+config LIB_BT_CONNECT
+    bool "Enable BT Connect library"
+    select BT
+    select BT_SMP
+    select BT_PERIPHERAL
+    select BT_BAS
+    select BT_HIDS
+    select BT_CONN_CTX
+    select BT_DIS
+    select BT_DIS_MANUF_NAME
+    select BT_DIS_PNP
+    select SETTINGS
+    select BT_SETTINGS
+
+if LIB_BT_CONNECT
+
+    module = BT_CONNECT
+    module-str = bt_connect
+    source "subsys/logging/Kconfig.template.log_config"
+
+    configdefault BT_ATT_TX_COUNT
+        default 5
+
+    configdefault BT_GATT_AUTO_SEC_REQ
+        default n
+
+    configdefault BT_AUTO_PHY_UPDATE
+        default n
+
+    configdefault BT_DEVICE_APPEARANCE
+        default 961
+
+    configdefault BT_GATT_UUID16_POOL_SIZE
+        default 40
+
+    configdefault BT_GATT_CHRC_POOL_SIZE
+        default 20
+
+    configdefault BT_DIS_MANUF_NAME_STR
+        default "YarmanKB"
+
+    configdefault BT_DIS_PNP_VID_SRC
+        default 2
+
+    configdefault BT_DIS_PNP_VID
+        default 0x6969
+    
+endif # LIB_BT_CONNECT

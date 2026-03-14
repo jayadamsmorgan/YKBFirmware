@@ -1,5 +1,8 @@
 menu "Custom libraries"
 
+rsource "bt_connect/Kconfig"
+rsource "kb_settings/Kconfig"
+rsource "usb_connect/Kconfig"
 rsource "ykb_esb/Kconfig"
 rsource "ykb_timeslot/Kconfig"
 

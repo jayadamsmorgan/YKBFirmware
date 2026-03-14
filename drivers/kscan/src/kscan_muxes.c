@@ -23,11 +23,14 @@ struct kscan_muxes_config {
 
 struct kscan_muxes_data {
     uint16_t *thresholds;
+    uint16_t *values;
 
     struct k_thread *threads;
     k_thread_stack_t **stacks;
     uint16_t *chan_idxs;
 };
+
+static K_MUTEX_DEFINE(kscan_mutex);
 
 // Thread which will run for each mux/adc_chan pair
 static void kscan_muxes_thread(void *kscan_dev, void *chan_index, void *_) {
@@ -93,6 +96,7 @@ static void kscan_muxes_thread(void *kscan_dev, void *chan_index, void *_) {
                 goto cleanup;
             }
             uint16_t kscan_offset = chan_offset + i;
+            data->values[kscan_offset] = val;
             if (val >= data->thresholds[kscan_offset] && !is_pressed[i]) {
                 // We got a press!
                 STRUCT_SECTION_FOREACH(kscan_cb, callbacks) {
@@ -133,10 +137,17 @@ static int kscan_muxes_set_thresholds(const struct device *dev,
     if (!thresholds) {
         return -EINVAL;
     }
-    // TODO: pause threads, set thresholds, then start the threads
     struct kscan_muxes_data *data = dev->data;
     const struct kscan_muxes_config *cfg = dev->config;
+    for (size_t i = 0; i < cfg->channels_count; ++i) {
+        k_thread_suspend(&data->threads[i]);
+    }
+    k_mutex_lock(&kscan_mutex, K_FOREVER);
     memcpy(data->thresholds, thresholds, cfg->key_amount * sizeof(uint16_t));
+    k_mutex_unlock(&kscan_mutex);
+    for (size_t i = 0; i < cfg->channels_count; ++i) {
+        k_thread_resume(&data->threads[i]);
+    }
     return 0;
 }
 
@@ -145,18 +156,18 @@ static int kscan_muxes_get_thresholds(const struct device *dev,
     if (!thresholds) {
         return -EINVAL;
     }
-    // TODO: pause threads, get thresholds, then start the threads
     struct kscan_muxes_data *data = dev->data;
     const struct kscan_muxes_config *cfg = dev->config;
+    k_mutex_lock(&kscan_mutex, K_FOREVER);
     memcpy(thresholds, data->thresholds, cfg->key_amount * sizeof(uint16_t));
+    k_mutex_unlock(&kscan_mutex);
     return 0;
 }
 
-static int kscan_muxes_set_default_thresholds(const struct device *dev) {
-    struct kscan_muxes_data *data = dev->data;
+static int kscan_muxes_get_default_thresholds(const struct device *dev,
+                                              uint16_t *thresholds) {
     const struct kscan_muxes_config *cfg = dev->config;
-    // TODO: pause threads, set thresholds, then start the threads
-    memcpy(data->thresholds, cfg->default_thresholds,
+    memcpy(thresholds, cfg->default_thresholds,
            cfg->key_amount * sizeof(uint16_t));
 
     return 0;
@@ -175,7 +186,7 @@ static int kscan_muxes_get_idx_offset(const struct device *dev) {
 DEVICE_API(kscan, kscan_muxes_api) = {
     .get_thresholds = kscan_muxes_get_thresholds,
     .set_thresholds = kscan_muxes_set_thresholds,
-    .set_default_thresholds = kscan_muxes_set_default_thresholds,
+    .get_default_thresholds = kscan_muxes_get_default_thresholds,
 
     .get_key_amount = kscan_muxes_get_key_amount,
     .get_idx_offset = kscan_muxes_get_idx_offset,
@@ -315,6 +326,8 @@ static int kscan_muxes_init(const struct device *dev) {
         *__kscan_muxes_stacks__##inst[__kscan_muxes_cnt__##inst] = {           \
             DT_INST_FOREACH_PROP_ELEM(inst, muxes,                             \
                                       THREAD_STACK_REFERENCE_IDX_AND_COMMA)};  \
+    static uint16_t                                                            \
+        __kscan_muxes_values__##inst[KSCAN_MUXES_CHANNELS_SUM(inst)] = {0};    \
                                                                                \
     static const struct kscan_muxes_config __kscan_muxes_config__##inst = {    \
         .channels = __kscan_muxes_adc_channels__##inst,                        \
@@ -332,6 +345,7 @@ static int kscan_muxes_init(const struct device *dev) {
     };                                                                         \
     static struct kscan_muxes_data __kscan_muxes_data__##inst = {              \
         .thresholds = __kscan_muxes_data_thresholds__##inst,                   \
+        .values = __kscan_muxes_values__##inst,                                \
                                                                                \
         .threads = __kscan_muxes_threads__##inst,                              \
         .stacks = __kscan_muxes_stacks__##inst,                                \

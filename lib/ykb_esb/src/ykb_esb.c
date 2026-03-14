@@ -17,8 +17,8 @@ LOG_MODULE_REGISTER(ykb_esb, CONFIG_YKB_ESB_LOG_LEVEL);
 
 static ykb_esb_callback_t m_callback;
 static ykb_esb_event_t m_event;
+static ykb_esb_config_t m_config;
 
-static ykb_esb_mode_t m_mode;
 static bool m_active;
 static uint8_t m_base_addr_0[4];
 static uint8_t m_base_addr_1[4];
@@ -57,7 +57,7 @@ static void event_handler(struct esb_evt const *event) {
         LOG_DBG("ESB_EVENT_TX_SUCCESS");
 
         /* PTX: pop the item we previously peeked */
-        if (m_mode == YKB_ESB_MODE_PTX) {
+        if (m_config.mode == YKB_ESB_MODE_PTX) {
             (void)k_msgq_get(&m_msgq_tx_payloads, &tmp_payload, K_NO_WAIT);
         }
 
@@ -66,15 +66,15 @@ static void event_handler(struct esb_evt const *event) {
             m_event.evt_type = YKB_ESB_EVT_RX;
             m_event.buf = rx_payload.data;
             m_event.data_length = rx_payload.length;
-            m_callback(&m_event);
+            m_callback(&m_event, m_config.user_ptr);
         }
 
         m_event.evt_type = YKB_ESB_EVT_TX_SUCCESS;
         m_event.data_length = 0;
-        m_callback(&m_event);
+        m_callback(&m_event, m_config.user_ptr);
 
         /* PTX: send next queued payload */
-        if (m_mode == YKB_ESB_MODE_PTX) {
+        if (m_config.mode == YKB_ESB_MODE_PTX) {
             (void)ptx_kick_next_from_msgq();
         }
 
@@ -83,7 +83,7 @@ static void event_handler(struct esb_evt const *event) {
     case ESB_EVENT_TX_FAILED:
         LOG_DBG("ESB_EVENT_TX_FAILED");
 
-        if (m_mode == YKB_ESB_MODE_PTX) {
+        if (m_config.mode == YKB_ESB_MODE_PTX) {
             /* Flush and retry later; your original behavior. */
             esb_flush_tx();
             (void)ptx_kick_next_from_msgq();
@@ -91,7 +91,7 @@ static void event_handler(struct esb_evt const *event) {
 
         m_event.evt_type = YKB_ESB_EVT_TX_FAIL;
         m_event.data_length = 0;
-        m_callback(&m_event);
+        m_callback(&m_event, m_config.user_ptr);
         break;
 
     case ESB_EVENT_RX_RECEIVED:
@@ -101,7 +101,7 @@ static void event_handler(struct esb_evt const *event) {
             m_event.evt_type = YKB_ESB_EVT_RX;
             m_event.buf = rx_payload.data;
             m_event.data_length = rx_payload.length;
-            m_callback(&m_event);
+            m_callback(&m_event, m_config.user_ptr);
         }
         break;
 
@@ -147,7 +147,7 @@ static int clocks_start(void) {
 /* -------------------- PRX cached ACK payload helpers ---------------- */
 
 static void prx_preload_cached_ack(void) {
-    if (m_mode != YKB_ESB_MODE_PRX) {
+    if (m_config.mode != YKB_ESB_MODE_PRX) {
         return;
     }
     if (!m_prx_ack_cache_valid) {
@@ -164,7 +164,7 @@ static void prx_preload_cached_ack(void) {
 }
 
 static void prx_set_cached_ack_from_data(const uint8_t *data, size_t len) {
-    if (m_mode != YKB_ESB_MODE_PRX) {
+    if (m_config.mode != YKB_ESB_MODE_PRX) {
         return;
     }
 
@@ -189,7 +189,7 @@ static void prx_set_cached_ack_from_data(const uint8_t *data, size_t len) {
  * below.
  */
 int ykb_esb_prx_set_ack_payload(const uint8_t *data, size_t len) {
-    if (m_mode != YKB_ESB_MODE_PRX) {
+    if (m_config.mode != YKB_ESB_MODE_PRX) {
         return -EINVAL;
     }
     if (!data || len > sizeof(m_prx_ack_cache.data)) {
@@ -278,19 +278,14 @@ static int ptx_kick_next_from_msgq(void) {
 
 /* ------------------------- Public API ------------------------------ */
 
-int ykb_esb_init(ykb_esb_mode_t mode, ykb_esb_callback_t callback,
-                 uint8_t base_addr_0[4], uint8_t base_addr_1[4]) {
-    int ret;
+int ykb_esb_init(ykb_esb_config_t *cfg, ykb_esb_callback_t callback) {
 
     m_callback = callback;
-    m_mode = mode;
+    memcpy(&m_config, cfg, sizeof(m_config));
     m_active = false;
-    if (base_addr_0 && base_addr_1) {
-        memcpy(m_base_addr_0, base_addr_0, sizeof(m_base_addr_0));
-        memcpy(m_base_addr_1, base_addr_1, sizeof(m_base_addr_1));
-    }
 
 #if CONFIG_LIB_YKB_ESB_MPSL
+    int ret;
     /* Debug GPIOs (optional) */
     // NRF_P0->DIRSET = BIT(28) | BIT(29) | BIT(30) | BIT(31) | BIT(4);
     // NRF_P0->OUTCLR = BIT(28) | BIT(29) | BIT(30) | BIT(31);
@@ -327,7 +322,7 @@ int ykb_esb_send(ykb_esb_data_t *tx_packet) {
     }
 
 #if CONFIG_LIB_YKB_ESB_MPSL
-    if (m_mode == YKB_ESB_MODE_PRX) {
+    if (m_config.mode == YKB_ESB_MODE_PRX) {
         /* Overwrite cached ACK payload */
         prx_set_cached_ack_from_data(tx_packet->data, tx_packet->len);
         return 0;
@@ -361,7 +356,7 @@ static int ykb_esb_suspend(void) {
 
     NRF_P0->OUTSET = BIT(29);
 
-    if (m_mode == YKB_ESB_MODE_PTX) {
+    if (m_config.mode == YKB_ESB_MODE_PTX) {
         uint32_t irq_key = irq_lock();
 
         irq_disable(RADIO_IRQn);
@@ -397,7 +392,7 @@ static int ykb_esb_resume(void) {
 
     NRF_P0->OUTSET = BIT(29);
 
-    err = esb_initialize(m_mode);
+    err = esb_initialize(m_config.mode);
     m_active = (err == 0);
 
     NRF_P0->OUTCLR = BIT(29);
@@ -407,7 +402,7 @@ static int ykb_esb_resume(void) {
     }
 
     /* PTX: kick TX if anything queued */
-    if (m_mode == YKB_ESB_MODE_PTX) {
+    if (m_config.mode == YKB_ESB_MODE_PTX) {
         (void)ptx_kick_next_from_msgq();
     } else {
         /* PRX: ensure cached ACK payload is loaded this slot */

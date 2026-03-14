@@ -1,1 +1,1 @@
-add_subdirectory_ifdef(CONFIG_SPLITLINK_ESB src/splitlink_esb)
+add_subdirectory_ifdef(CONFIG_SPLITLINK_YKB_ESB src/splitlink_ykb_esb)

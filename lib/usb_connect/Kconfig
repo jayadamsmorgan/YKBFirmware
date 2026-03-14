@@ -1,0 +1,44 @@
+config LIB_USB_CONNECT
+    bool "Enable USB Connect library"
+    default y if KB_HANDLER && DT_HAS_ZEPHYR_HID_DEVICE_ENABLED
+    select HWINFO
+    select USB_DEVICE_STACK_NEXT
+    select USBD_HID_SUPPORT
+
+if LIB_USB_CONNECT
+
+    module = USB_CONNECT
+    module-str = usb_connect
+    source "subsys/logging/Kconfig.template.log_config"
+
+    config LIB_USB_CONNECT_SELF_POWERED
+        bool "Enable USB device Self-powered attribute"
+        default y
+
+    config LIB_USB_CONNECT_REMOTE_WAKEUP
+        bool "Enable remote wakeup feature"
+        default y
+
+    config LIB_USB_CONNECT_VID
+        hex "USB device vendor ID"
+        default 0x6969
+    
+    config LIB_USB_CONNECT_PID
+        hex "USB device product ID"
+
+    config LIB_USB_CONNECT_MANUFACTURER
+        string "USB device manufacturer string"
+        default "YarmanKB"
+
+    config LIB_USB_CONNECT_PRODUCT
+        string "USB device product string"
+
+    config LIB_USB_CONNECT_MAX_POWER
+        int "USB Max Power value"
+        range 1 250
+        default 250
+
+    config LIB_USB_CONNECT_20_EXTENSION_DESC
+        bool "Enable USB2.0 Extension descriptor"
+
+endif # LIB_USB_CONNECT

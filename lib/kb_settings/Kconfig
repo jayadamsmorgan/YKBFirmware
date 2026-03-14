@@ -1,0 +1,24 @@
+config LIB_KB_SETTINGS
+    bool "Enable KB Settings library"
+    depends on KB_HANDLER
+    default y
+    select SETTINGS
+
+if LIB_KB_SETTINGS
+
+    module = KB_SETTINGS
+    module-str = kb_settings
+    source "subsys/logging/Kconfig.template.log_config"
+
+    KB_HANDLER_PATH := $(dt_nodelabel_path,kb_handler)
+
+    config KB_SETTINGS_KEY_COUNT
+        int
+        default $(dt_node_int_prop_int,$(KB_HANDLER_PATH),key-count)
+
+    config KB_SETTINGS_KEY_COUNT_SLAVE
+        int
+        depends on $(dt_node_has_prop,$(KB_HANDLER_PATH),key-count-slave)
+        default $(dt_node_int_prop_int,$(KB_HANDLER_PATH),key-count-slave)
+
+endif # LIB_KB_SETTINGS

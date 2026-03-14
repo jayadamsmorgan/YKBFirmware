@@ -4,95 +4,166 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
+#include <drivers/kscan.h>
+#include <drivers/splitlink.h>
 #include <lib/ykb_esb.h>
 
 #include <app_version.h>
 
 LOG_MODULE_REGISTER(main, CONFIG_APP_LOG_LEVEL);
 
-#define NUM_PIXELS 5
+const struct device *splitlink = DEVICE_DT_GET(DT_NODELABEL(splitlink));
 
-static const struct device *strip = DEVICE_DT_GET(DT_CHOSEN(ykb_led_strip));
+static void connect(const struct device *dev) {
+    //
+    LOG_INF("Second half connected.");
+}
 
-static struct led_rgb pixels[NUM_PIXELS] __nocache __aligned(4);
+static void disconnect(const struct device *dev) {
+    //
+    LOG_INF("Second half disconnected.");
+}
 
-static int64_t uptime = 0;
+#if CONFIG_BOARD_DACTYL_V1_NRF5340_CPUAPP_LEFT
 
-static const char *ptx_str = "Hello from ptx";
+#include "bt.h"
 
-static void on_esb_callback(ykb_esb_event_t *event) {
-    switch (event->evt_type) {
-    case YKB_ESB_EVT_TX_SUCCESS: {
-        int64_t delta = k_uptime_get() - uptime;
-        if (delta > 3) {
-            printk("%lld\n", delta);
+struct kbh_thread_msg {
+    char key;
+    bool status;
+};
+
+K_MSGQ_DEFINE(key_q, sizeof(struct kbh_thread_msg), 8, 4);
+K_THREAD_STACK_DEFINE(key_thread_stack, 1024);
+static struct k_thread key_thread;
+
+static void key_process_thread(void *a, void *b, void *c) {
+    while (true) {
+        struct kbh_thread_msg data;
+        k_msgq_get(&key_q, &data, K_FOREVER);
+        if (data.status) {
+            send_report_press(data.key);
+        } else {
+            send_report_release(data.key);
         }
-        break;
-    }
-    case YKB_ESB_EVT_TX_FAIL:
-        LOG_INF("ESB TX failed");
-        break;
-    case YKB_ESB_EVT_RX: {
-        char str_buf[32];
-        memcpy(str_buf, event->buf, event->data_length);
-        LOG_INF("Received: %s", str_buf);
-        break;
-    }
     }
 }
 
+static void receive(const struct device *dev, uint8_t *data, size_t len) {
+    //
+    if (len != 2) {
+        LOG_ERR("Unknown packet len %d", len);
+        return;
+    }
+    if (data[0] == 1) {
+        struct kbh_thread_msg data = {
+            .key = 'b',
+            .status = 1,
+        };
+        k_msgq_put(&key_q, &data, K_NO_WAIT);
+    } else {
+        struct kbh_thread_msg data = {
+            .key = 'b',
+            .status = 0,
+        };
+        k_msgq_put(&key_q, &data, K_NO_WAIT);
+    }
+}
+
+static void on_press(uint16_t key_index) {
+    struct kbh_thread_msg data = {
+        .key = 'a',
+        .status = 1,
+    };
+    k_msgq_put(&key_q, &data, K_NO_WAIT);
+}
+
+static void on_release(uint16_t key_index) {
+    struct kbh_thread_msg data = {
+        .key = 'a',
+        .status = 0,
+    };
+    k_msgq_put(&key_q, &data, K_NO_WAIT);
+}
+
+KSCAN_CB_DEFINE(main) = {
+    .on_press = on_press,
+    .on_release = on_release,
+};
+
+SPLITLINK_CB_DEFINE(main) = {
+    .connect_cb = connect,
+    .disconnect_cb = disconnect,
+    .on_receive_cb = receive,
+};
+
 int main(void) {
 
-    if (!device_is_ready(strip)) {
-        printk("LED strip device not ready\n");
+    int err;
+
+    k_thread_create(&key_thread, key_thread_stack,
+                    K_THREAD_STACK_SIZEOF(key_thread_stack), key_process_thread,
+                    NULL, NULL, NULL, 15, 0, K_NO_WAIT);
+
+    k_sleep(K_MSEC(500));
+    err = splitlink_esb_init(splitlink);
+    if (err) {
+        LOG_ERR("ESB: %d", err);
         return 0;
     }
 
-    pixels[0].r = 0;
-    pixels[0].g = 0;
-    pixels[0].b = 10;
-    pixels[1].r = 0;
-    pixels[1].g = 10;
-    pixels[1].b = 0;
-    pixels[2].r = 10;
-    pixels[2].g = 0;
-    pixels[2].b = 0;
-    pixels[3].r = 10;
-    pixels[3].g = 10;
-    pixels[3].b = 0;
-    pixels[4].r = 0;
-    pixels[4].g = 10;
-    pixels[4].b = 10;
-
-    k_sleep(K_MSEC(100));
-
-    uint8_t base_addr_0[4] = {0xE7, 0xE7, 0xE7, 0xE7};
-    uint8_t base_addr_1[4] = {0xC2, 0xC2, 0xC2, 0xC2};
-    int err = ykb_esb_init(YKB_ESB_MODE_PTX, on_esb_callback, base_addr_0,
-                           base_addr_1);
+    err = bt_setup();
     if (err) {
-        LOG_ERR("ykb_esb init failed (err %d)", err);
-        return err;
+        LOG_ERR("bt_setup: %d", err);
+        return 0;
     }
 
-    static ykb_esb_data_t my_data;
-
     while (true) {
-        struct led_rgb tmp = pixels[0];
-        for (int i = 0; i < NUM_PIXELS - 1; i++) {
-            pixels[i] = pixels[i + 1];
-        }
-        pixels[4] = tmp;
-
-        my_data.len = strlen(ptx_str);
-        memcpy(my_data.data, ptx_str, strlen(ptx_str));
-        uptime = k_uptime_get();
-        err = ykb_esb_send(&my_data);
-
-        // led_strip_update_rgb(strip, pixels, NUM_PIXELS);
-
-        k_sleep(K_MSEC(100));
+        k_sleep(K_MSEC(2000));
+        bas_notify();
     }
 
     return 0;
 }
+
+#endif // CONFIG_BOARD_DACTYL_V1_NRF5340_CPUAPP_LEFT
+
+#if CONFIG_BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT
+
+SPLITLINK_CB_DEFINE(main) = {
+    .connect_cb = connect,
+    .disconnect_cb = disconnect,
+};
+
+static void on_press(uint16_t key_index) {
+    uint8_t data[2] = {1, 0};
+    splitlink_send(splitlink, data, 2);
+}
+
+static void on_release(uint16_t key_index) {
+    uint8_t data[2] = {0, 0};
+
+    splitlink_send(splitlink, data, 2);
+}
+
+KSCAN_CB_DEFINE(main) = {
+    .on_release = on_release,
+    .on_press = on_press,
+};
+
+int main(void) {
+
+    k_sleep(K_MSEC(500));
+    int err = splitlink_esb_init(splitlink);
+    if (err) {
+        LOG_ERR("ESB: %d", err);
+        return 0;
+    }
+
+    while (true) {
+        k_sleep(K_MSEC(2000));
+    }
+    return 0;
+}
+
+#endif // CONFIG_BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT

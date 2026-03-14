@@ -26,6 +26,22 @@ if KB_HANDLER
 
     endchoice # KB_HANDLER_IMPL
 
+    config KB_HANDLER_MSGQ_SIZE
+        int "KB Handler message queue size"
+        default 8
+
+    config KB_HANDLER_THREAD_STACK_SIZE
+        int "KB Handler thread stack size"
+        default 1024
+
+    config KB_HANDLER_THREAD_PRIORITY
+        int "KB Handler thread priority"
+        default 15
+
+    config KB_HANDLER_REPORT_ROLLOVER
+        bool "Enable rollover error when more than 6 keys are pressed at once"
+        default y
+
     module = KB_HANDLER
     module-str = kb_handler
     source "subsys/logging/Kconfig.template.log_config"

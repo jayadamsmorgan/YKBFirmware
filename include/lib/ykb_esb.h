@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include <zephyr/kernel.h>
 
+#ifndef CONFIG_LIB_YKB_ESB_PACKET_LENGTH
+#define CONFIG_LIB_YKB_ESB_PACKET_LENGTH 32
+#endif // CONFIG_LIB_YKB_ESB_PACKET_LENGTH
+
 typedef enum {
     YKB_ESB_EVT_TX_SUCCESS,
     YKB_ESB_EVT_TX_FAIL,
@@ -18,20 +22,20 @@ typedef struct {
 } ykb_esb_event_t;
 
 typedef struct {
-    uint8_t data[32];
+    uint8_t data[CONFIG_ESB_MAX_PAYLOAD_LENGTH];
     uint32_t len;
 } ykb_esb_data_t;
 
 typedef struct {
     ykb_esb_mode_t mode;
+    void *user_ptr;
     uint8_t base_addr_0[4];
     uint8_t base_addr_1[4];
 } ykb_esb_config_t;
 
-typedef void (*ykb_esb_callback_t)(ykb_esb_event_t *event);
+typedef void (*ykb_esb_callback_t)(ykb_esb_event_t *event, void *user_ptr);
 
-int ykb_esb_init(ykb_esb_mode_t mode, ykb_esb_callback_t callback,
-                 uint8_t base_addr_0[4], uint8_t base_addr_1[4]);
+int ykb_esb_init(ykb_esb_config_t *config, ykb_esb_callback_t callback);
 
 int ykb_esb_send(ykb_esb_data_t *tx_packet);
 

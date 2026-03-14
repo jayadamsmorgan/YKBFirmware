@@ -45,9 +45,8 @@ NRF_RPC_IPC_TRANSPORT(esb_group_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)),
 NRF_RPC_GROUP_DEFINE(esb_group, "esb_group_id", &esb_group_tr, NULL, NULL,
                      NULL);
 
-#define CONFIG_ESB_MAX_PAYLOAD_LENGTH 32
-
 static ykb_esb_callback_t m_callback;
+static ykb_esb_config_t m_config;
 static ykb_esb_event_t m_event;
 static uint8_t m_rx_buf[CONFIG_ESB_MAX_PAYLOAD_LENGTH];
 
@@ -82,7 +81,7 @@ static void rpc_rsp_handler(const struct nrf_rpc_group *group,
     nrf_rpc_cbor_decoding_done(&esb_group, ctx);
 }
 
-static int rpc_esb_init(ykb_esb_config_t *p_config) {
+static int rpc_esb_init(void) {
     int32_t err = 0;
     int err_rpc;
     struct nrf_rpc_cbor_ctx ctx;
@@ -101,7 +100,8 @@ static int rpc_esb_init(ykb_esb_config_t *p_config) {
      * Note: a gotcha is that the `zcbor_` APIs return `true` on success,
      * whereas almost all zephyr (and other NCS) APIs return a `0` on success.
      */
-    if (!zcbor_bstr_encode_ptr(ctx.zs, (const uint8_t *)p_config, config_len)) {
+    if (!zcbor_bstr_encode_ptr(ctx.zs, (const uint8_t *)&m_config,
+                               config_len)) {
         return -EINVAL;
     }
 
@@ -210,7 +210,7 @@ static void rpc_esb_event_handler(const struct nrf_rpc_group *group,
         m_event.evt_type = evt_type;
         m_event.buf = m_rx_buf;
         m_event.data_length = rx_payload_length;
-        m_callback(&m_event);
+        m_callback(&m_event, m_config.user_ptr);
     } else {
         LOG_ERR("%s: decoding error %d", __func__, err);
     }
@@ -246,16 +246,14 @@ static int serialization_init(void) {
     return 0;
 }
 
-SYS_INIT(serialization_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
-
-int ykb_esb_init(ykb_esb_mode_t mode, ykb_esb_callback_t callback,
-                 uint8_t base_addr_0[4], uint8_t base_addr_1[4]) {
-    static ykb_esb_config_t config;
-    config.mode = mode;
-    memcpy(config.base_addr_0, base_addr_0, sizeof(config.base_addr_0));
-    memcpy(config.base_addr_1, base_addr_1, sizeof(config.base_addr_1));
+int ykb_esb_init(ykb_esb_config_t *config, ykb_esb_callback_t callback) {
+    int err = serialization_init();
+    if (err) {
+        return err;
+    }
+    memcpy(&m_config, config, sizeof(m_config));
     m_callback = callback;
-    int err = rpc_esb_init(&config);
+    err = rpc_esb_init();
     if (err < 0) {
         return err;
     }
@@ -263,6 +261,6 @@ int ykb_esb_init(ykb_esb_mode_t mode, ykb_esb_callback_t callback,
 }
 
 int ykb_esb_send(ykb_esb_data_t *tx_packet) {
-    rpc_esb_tx(tx_packet);
-    return 0;
+    //
+    return rpc_esb_tx(tx_packet);
 }

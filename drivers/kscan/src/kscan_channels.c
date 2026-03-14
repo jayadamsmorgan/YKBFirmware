@@ -20,7 +20,11 @@ struct kscan_channels_data {
     struct k_thread *threads;
     k_thread_stack_t **stacks;
     uint16_t *chan_idxs;
+
+    uint16_t *values;
 };
+
+static K_MUTEX_DEFINE(kscan_mutex);
 
 // Thread which will run for each adc_chan
 static void kscan_channels_thread(void *device, void *chan_idx, void *__) {
@@ -42,6 +46,8 @@ static void kscan_channels_thread(void *device, void *chan_idx, void *__) {
                     chan.channel_id, err);
             return;
         }
+        // Put the value in the data
+        data->values[idx] = val;
         if (val >= data->thresholds[idx] && !is_pressed) {
             // We got a press!
             STRUCT_SECTION_FOREACH(kscan_cb, callbacks) {
@@ -69,11 +75,18 @@ static int kscan_channels_set_thresholds(const struct device *dev,
     if (!thresholds) {
         return -EINVAL;
     }
-    // TODO: pause threads, set thresholds, then start the threads
-    struct kscan_channels_data *data = dev->data;
     const struct kscan_channels_config *cfg = dev->config;
+    struct kscan_channels_data *data = dev->data;
+    for (size_t i = 0; i < cfg->channels_count; ++i) {
+        k_thread_suspend(&data->threads[i]);
+    }
+    k_mutex_lock(&kscan_mutex, K_FOREVER);
     memcpy(data->thresholds, thresholds,
            cfg->channels_count * sizeof(uint16_t));
+    k_mutex_unlock(&kscan_mutex);
+    for (size_t i = 0; i < cfg->channels_count; ++i) {
+        k_thread_resume(&data->threads[i]);
+    }
     return 0;
 }
 
@@ -82,19 +95,23 @@ static int kscan_channels_get_thresholds(const struct device *dev,
     if (!thresholds) {
         return -EINVAL;
     }
-    // TODO: pause threads, get thresholds, then start the threads
-    struct kscan_channels_data *data = dev->data;
     const struct kscan_channels_config *cfg = dev->config;
+    struct kscan_channels_data *data = dev->data;
+    k_mutex_lock(&kscan_mutex, K_FOREVER);
     memcpy(thresholds, data->thresholds,
            cfg->channels_count * sizeof(uint16_t));
+    k_mutex_unlock(&kscan_mutex);
+
     return 0;
 }
 
-static int kscan_channels_set_default_thresholds(const struct device *dev) {
-    struct kscan_channels_data *data = dev->data;
+static int kscan_channels_get_default_thresholds(const struct device *dev,
+                                                 uint16_t *thresholds) {
+    if (!thresholds) {
+        return -EINVAL;
+    }
     const struct kscan_channels_config *cfg = dev->config;
-    // TODO: pause threads, set thresholds, then start the threads
-    memcpy(data->thresholds, cfg->default_thresholds,
+    memcpy(thresholds, cfg->default_thresholds,
            cfg->channels_count * sizeof(uint16_t));
 
     return 0;
@@ -110,13 +127,27 @@ static int kscan_channels_get_idx_offset(const struct device *dev) {
     return cfg->idx_offset;
 }
 
+static int kscan_channels_get_values(const struct device *dev,
+                                     uint16_t *values) {
+    if (!values) {
+        return -EINVAL;
+    }
+
+    const struct kscan_channels_config *cfg = dev->config;
+    struct kscan_channels_data *data = dev->data;
+
+    memcpy(values, data->values, cfg->channels_count * sizeof(uint16_t));
+
+    return 0;
+}
+
 DEVICE_API(kscan, kscan_channels_api) = {
     .get_thresholds = kscan_channels_get_thresholds,
     .set_thresholds = kscan_channels_set_thresholds,
-    .set_default_thresholds = kscan_channels_set_default_thresholds,
-
+    .get_default_thresholds = kscan_channels_get_default_thresholds,
     .get_key_amount = kscan_channels_get_key_amount,
     .get_idx_offset = kscan_channels_get_idx_offset,
+    .get_values = kscan_channels_get_values,
 };
 
 static int kscan_channels_init(const struct device *dev) {
@@ -141,7 +172,7 @@ static int kscan_channels_init(const struct device *dev) {
     LOG_INF("KScan (channels) ready: %u channels", cfg->channels_count);
 
     for (uint16_t i = 0; i < cfg->channels_count; ++i) {
-        k_thread_create(&data->threads[i], data->stacks[i], /* see note below */
+        k_thread_create(&data->threads[i], data->stacks[i],
                         CONFIG_KSCAN_CHANNELS_THREAD_STACK_SIZE,
                         kscan_channels_thread, (void *)dev, &data->chan_idxs[i],
                         NULL, CONFIG_KSCAN_CHANNELS_THREAD_PRIORITY, 0,
@@ -181,6 +212,8 @@ static int kscan_channels_init(const struct device *dev) {
     enum {                                                                     \
         __kscan_channels_cnt__##inst = DT_INST_PROP_LEN(inst, io_channels)     \
     };                                                                         \
+    static uint16_t                                                            \
+        __kscan_channels_values__##inst[__kscan_channels_cnt__##inst] = {0};   \
     static k_thread_stack_t                                                    \
         *__kscan_channels_stacks__##inst[__kscan_channels_cnt__##inst] = {     \
             DT_INST_FOREACH_PROP_ELEM(inst, io_channels,                       \
@@ -212,6 +245,7 @@ static int kscan_channels_init(const struct device *dev) {
         .threads = __kscan_channels_threads__##inst,                           \
         .stacks = __kscan_channels_stacks__##inst,                             \
         .chan_idxs = __kscan_channels_chan_idxs__##inst,                       \
+        .values = __kscan_channels_values__##inst,                             \
     };                                                                         \
                                                                                \
     DEVICE_DT_INST_DEFINE(                                                     \

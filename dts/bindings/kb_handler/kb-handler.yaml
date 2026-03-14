@@ -16,6 +16,13 @@ properties:
       Amount of keys for current keyboard.
       For split keyboards this is the amount of keys for the current half.
 
+  mouse-emu-keys:
+    type: array
+    required: false
+    description: >
+      Key indices to emulate mouse with those keys.
+      Should be in order [left_direction, up_direction, down_direction, right_direction, left_click, .
+
   default-keymap-layer1:
     type: array
     required: true
@@ -31,6 +38,16 @@ properties:
     required: false
     description: >
       Default key mappings used (layer 2).
+      Each key index reported from KScan instances will be handled with this mapping.
+      So match indexes from them to handle properly.
+      For regular keyboards should be the same length as key-count.
+      For split keyboards should be the same length as key-count + slave-key-count.
+
+  default-keymap-layer3:
+    type: array
+    required: false
+    description: >
+      Default key mappings used (layer 3).
       Each key index reported from KScan instances will be handled with this mapping.
       So match indexes from them to handle properly.
       For regular keyboards should be the same length as key-count.

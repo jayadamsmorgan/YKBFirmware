@@ -7,4 +7,4 @@ description: >
 
 compatible: "kb-handler-splitlink-slave"
 
-include: kb-handler.yaml
+include: kb-handler-splitlink.yaml

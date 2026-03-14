@@ -92,7 +92,7 @@
 
         key-count = <34>;
 
-        default-keymap-layer1 =
+        default-keymap-layer1 = 
             // Left (34)
             <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
             <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
@@ -130,6 +130,18 @@
             <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
             <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>;
     };
+
+    splitlink: splitlink {
+        esb-default-address = [E7E7E7E7C2C2C2C2];
+    };
+
+    hid_dev_0: hid_dev_0 {
+		compatible = "zephyr,hid-device";
+		label = "HID0";
+		protocol-code = "keyboard";
+		in-report-size = <64>;
+		in-polling-period-us = <1000>;
+	};
 
 };
 

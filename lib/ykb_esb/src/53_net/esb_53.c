@@ -39,7 +39,7 @@ K_WORK_DEFINE(m_work_send_evt_rx_received, work_send_evt_rx_received_func);
 static uint8_t *last_rx_buf;
 static uint32_t last_rx_length;
 
-void on_esb_callback(ykb_esb_event_t *event) {
+void on_esb_callback(ykb_esb_event_t *event, void *user_data) {
     switch (event->evt_type) {
     case YKB_ESB_EVT_TX_SUCCESS:
         LOG_INF("ESB TX success");
@@ -146,8 +146,9 @@ static void rpc_esb_init_handler(const struct nrf_rpc_group *group,
 
     if (!err) {
         LOG_DBG("ykb_esb_init. Mode %i", config.mode);
-        err = ykb_esb_init(config.mode, on_esb_callback, config.base_addr_0,
-                           config.base_addr_1);
+        // Null the user_ptr just in case
+        config.user_ptr = NULL;
+        err = ykb_esb_init(&config, on_esb_callback);
         if (err) {
             LOG_ERR("ykb_esb init failed (err %d)", err);
         }
