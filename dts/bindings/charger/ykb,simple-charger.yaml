@@ -1,0 +1,25 @@
+description: >
+  Binding for a simple generic charger emulation.
+
+compatible: "ykb,simple-charger"
+
+include: base.yaml
+
+properties:
+  vin-present-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      GPIO which indicates that charging is in progress.
+
+  ce-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      Optional GPIO which controls the charging of the device
+
+  charge-complete-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      Optional GPIO which indicates that charging is complete.

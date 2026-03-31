@@ -1,4 +1,4 @@
-config LIB_BT_CONNECT
+menuconfig LIB_BT_CONNECT
     bool "Enable BT Connect library"
     select BT
     select BT_SMP

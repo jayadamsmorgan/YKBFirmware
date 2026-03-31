@@ -46,21 +46,24 @@ static void kscan_channels_thread(void *device, void *chan_idx, void *__) {
                     chan.channel_id, err);
             return;
         }
-        // Put the value in the data
+        STRUCT_SECTION_FOREACH(kscan_cb, callbacks) {
+            if (callbacks->on_new_value) {
+                callbacks->on_new_value(cfg->idx_offset + idx, val);
+            }
+        }
+
         data->values[idx] = val;
         if (val >= data->thresholds[idx] && !is_pressed) {
-            // We got a press!
             STRUCT_SECTION_FOREACH(kscan_cb, callbacks) {
-                if (callbacks->on_press) {
-                    callbacks->on_press(cfg->idx_offset + idx);
+                if (callbacks->on_event) {
+                    callbacks->on_event(cfg->idx_offset + idx, true);
                 }
             }
             is_pressed = true;
         } else if (val < data->thresholds[idx] && is_pressed) {
-            // We got a release!
             STRUCT_SECTION_FOREACH(kscan_cb, callbacks) {
-                if (callbacks->on_release) {
-                    callbacks->on_release(cfg->idx_offset + idx);
+                if (callbacks->on_event) {
+                    callbacks->on_event(cfg->idx_offset + idx, false);
                 }
             }
             is_pressed = false;

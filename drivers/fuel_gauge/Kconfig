@@ -1,0 +1,7 @@
+if FUEL_GAUGE
+
+    menu "Fuel-gauge drivers"
+        rsource "Kconfig.ykb_fuel_gauge_voltage_divider"
+    endmenu
+
+endif

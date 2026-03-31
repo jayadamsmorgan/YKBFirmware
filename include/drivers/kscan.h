@@ -1,12 +1,14 @@
 #ifndef __DRIVERS_KSCAN_H_
 #define __DRIVERS_KSCAN_H_
 
+#include <stdbool.h>
+
 #include <zephyr/device.h>
 #include <zephyr/toolchain.h>
 
 struct kscan_cb {
-    void (*on_press)(uint16_t index);
-    void (*on_release)(uint16_t index);
+    void (*on_event)(uint16_t index, bool pressed);
+    void (*on_new_value)(uint16_t index, uint16_t value);
 };
 
 #define KSCAN_CB_DEFINE(name)                                                  \
@@ -53,7 +55,7 @@ __syscall int kscan_get_default_thresholds(const struct device *dev,
 __syscall int kscan_get_key_amount(const struct device *dev);
 
 // Get the index offset of the KScan instance.
-// The value which KScan adds to the key index to report to a KScan callbacks
+// The value which KScan adds to the key index to report to KScan callbacks.
 //
 // Returns idx_offset on success, negative value otherwise
 __syscall int kscan_get_idx_offset(const struct device *dev);

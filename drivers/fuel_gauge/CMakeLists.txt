@@ -1,0 +1,3 @@
+zephyr_library_amend()
+
+zephyr_library_sources_ifdef(CONFIG_FUEL_GAUGE_YKB_VOLTAGE_DIVIDER src/ykb_fuel_gauge_voltage_divider.c)

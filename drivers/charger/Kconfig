@@ -1,0 +1,7 @@
+if CHARGER
+
+    menu "Charger drivers"
+        rsource "Kconfig.bq25185"
+    endmenu
+
+endif # CHARGER

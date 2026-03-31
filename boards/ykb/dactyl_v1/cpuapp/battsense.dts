@@ -1,0 +1,28 @@
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+    zephyr,user {
+
+        ykb-battsense-charger = <&charger>;
+        ykb-battsense-fuel-gauge = <&fuel_gauge>;
+        ykb-battsense-pw-cutoff-gpios = <&gpio0 16 GPIO_ACTIVE_HIGH>;
+    };
+
+    charger: charger {
+        compatible = "ti,bq25185";
+        stat1-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>;
+        stat2-gpios = <&gpio0 18 GPIO_ACTIVE_LOW>;
+        vin-present-gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+        status = "okay";
+    };
+};
+
+&i2c1 {
+    fuel_gauge: fuel_gauge@16 {
+        reg = <0x16>;
+        compatible = "onnn,lc709203f";
+        initial-rsoc;
+        apa = "3000mAh";
+        battery-profile = <0x1>;
+    };
+};

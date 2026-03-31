@@ -1,7 +1,7 @@
 /dts-v1/;
 #include <nordic/nrf5340_cpunet_qkaa.dtsi>
-#include "dactyl_v1_nrf5340_cpunet-pinctrl.dtsi"
-#include "dactyl_v1_nrf5340_cpunet_common.dts"
+#include "cpunet/pinctrl.dtsi"
+
 / {
 	model = "Dactyl V1 NRF5340 Network Core";
 	compatible = "ykb,dactyl_v1-nrf5340-cpunet";
@@ -26,3 +26,56 @@
 	pinctrl-1 = <&uart0_sleep>;
 	pinctrl-names = "default", "sleep";
 };
+
+&gpiote {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&timer0 {
+	status = "okay";
+};
+
+&timer1 {
+	status = "okay";
+};
+
+&timer2 {
+	status = "okay";
+};
+
+&flash1 {
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0xc000>;
+		};
+		slot0_partition: partition@c000 {
+			label = "image-0";
+			reg = <0x0000C000 0x17000>;
+		};
+		slot1_partition: partition@23000 {
+			label = "image-1";
+			reg = <0x00023000 0x17000>;
+		};
+		storage_partition: partition@3a000 {
+			label = "storage";
+			reg = <0x0003a000 0x6000>;
+		};
+	};
+};
+
+/* Include default shared RAM configuration file */
+#include <nordic/nrf5340_shared_sram_partition.dtsi>

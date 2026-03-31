@@ -16,12 +16,95 @@ properties:
       Amount of keys for current keyboard.
       For split keyboards this is the amount of keys for the current half.
 
-  mouse-emu-keys:
+  mouseemu-enabled:
+    type: boolean
+    required: false
+    description: >
+      Enables mouse emulation support for this keyboard handler instance.
+
+  mouseemu-direction-mode:
+    type: string
+    required: false
+    enum:
+      - "4-way"
+      - "8-way"
+    description: >
+      Mouse movement directional mode.
+      Selects whether movement keys are interpreted as 4-directional or
+      8-directional input.
+
+  mouseemu-move-keys:
     type: array
     required: false
     description: >
-      Key indices to emulate mouse with those keys.
-      Should be in order [left_direction, up_direction, down_direction, right_direction, left_click, .
+      Key indices used for pointer movement.
+      For 4-direction mode provide [left, up, down, right].
+      For 8-direction mode provide
+      [left, up, down, right, up_left, up_right, down_left, down_right].
+
+  mouseemu-move-keys-deadzones:
+    type: array
+    required: false
+    description: >
+      10 bit threshold values for the mouse emulation move keys.
+      Should map 1:1 to mouseemu-move-keys.
+
+  mouseemu-move-x-k-mul:
+    type: int
+    required: false
+    description:
+      Multiplier for the final value for moving cursor (X axis).
+
+  mouseemu-move-x-k-div:
+    type: int
+    required: false
+    description:
+      Divider for the final value for moving cursor (X axis).
+
+  mouseemu-move-y-k-mul:
+    type: int
+    required: false
+    description:
+      Multiplier for the final value for moving cursor (Y axis).
+
+  mouseemu-move-y-k-div:
+    type: int
+    required: false
+    description:
+      Divider for the final value for moving cursor (Y axis).
+
+  mouseemu-scroll-k-mul:
+    type: int
+    required: false
+    description:
+      Multiplier for the final value for scrolling (Y axis).
+
+  mouseemu-scroll-k-div:
+    type: int
+    required: false
+    description:
+      Divider for the final value for scrolling (Y axis).
+
+  mouseemu-scroll-keys:
+    type: array
+    required: false
+    description: >
+      Key indices used for mouse wheel scrolling.
+      Expected order is [scroll_up, scroll_down].
+
+  mouseemu-scroll-keys-deadzones:
+    type: array
+    required: false
+    description: >
+      10 bit threshold values for the mouse emulation scroll keys.
+      Should map 1:1 to mouseemu-scroll-keys.
+
+  mouseemu-button-keys:
+    type: array
+    required: false
+    description: >
+      Key indices used for mouse button emulation.
+      Expected order is [left_button, right_button, middle_button].
 
   default-keymap-layer1:
     type: array
@@ -52,4 +135,3 @@ properties:
       So match indexes from them to handle properly.
       For regular keyboards should be the same length as key-count.
       For split keyboards should be the same length as key-count + slave-key-count.
-

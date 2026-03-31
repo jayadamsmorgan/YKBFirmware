@@ -19,7 +19,7 @@ LOG_MODULE_REGISTER(kb_settings, CONFIG_KB_SETTINGS_LOG_LEVEL);
 const struct device *kb_handler_dev = DEVICE_DT_GET(DT_NODELABEL(kb_handler));
 
 // Increment every time kb_settings_image_t or it's contents change
-#define KB_SETTINGS_IMAGE_VERSION 1
+#define KB_SETTINGS_IMAGE_VERSION 2
 
 typedef struct {
     uint16_t version;
@@ -67,15 +67,20 @@ static int kb_settings_load_defaults(void) {
         goto cleanup;
     }
 
+    err =
+        kb_handler_get_default_mouseemu(kb_handler_dev, &kb_settings.mouseemu);
+    if (err) {
+        goto cleanup;
+    }
+
     uint16_t thresholds[TOTAL_KEY_COUNT];
     err = kb_handler_get_default_thresholds(kb_handler_dev, thresholds);
     if (err) {
         goto cleanup;
     }
     for (uint16_t i = 0; i < TOTAL_KEY_COUNT; ++i) {
-        kb_settings.keys_calibration[i].minimum = 0;
-        kb_settings.keys_calibration[i].threshold = thresholds[i];
-        kb_settings.keys_calibration[i].maximum = 1023;
+        kb_settings.thresholds[i] = thresholds[i];
+        kb_settings.maximums[i] = 1023;
     }
 
 cleanup:

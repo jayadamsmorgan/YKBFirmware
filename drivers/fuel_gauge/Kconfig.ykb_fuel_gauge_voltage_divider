@@ -1,0 +1,3 @@
+config FUEL_GAUGE_YKB_VOLTAGE_DIVIDER
+    bool "Fuel-gauge driver based on a simple voltage divider"
+    default y if DT_HAS_YKB_FUEL_GAUGE_VOLTAGE_DIVIDER_ENABLED

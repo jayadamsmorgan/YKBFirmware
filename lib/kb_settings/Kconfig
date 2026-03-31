@@ -1,4 +1,4 @@
-config LIB_KB_SETTINGS
+menuconfig LIB_KB_SETTINGS
     bool "Enable KB Settings library"
     depends on KB_HANDLER
     default y

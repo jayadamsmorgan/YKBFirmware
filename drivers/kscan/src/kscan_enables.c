@@ -75,20 +75,23 @@ static void kscan_enables_thread(void *kscan_dev, void *_, void *__) {
                 }
                 return;
             }
+            STRUCT_SECTION_FOREACH(kscan_cb, callbacks) {
+                if (callbacks->on_new_value) {
+                    callbacks->on_new_value(cfg->idx_offset + i, val);
+                }
+            }
             data->values[i] = val;
             if (val >= data->thresholds[i] && !is_pressed[i]) {
-                // We got a press!
                 STRUCT_SECTION_FOREACH(kscan_cb, callbacks) {
-                    if (callbacks->on_press) {
-                        callbacks->on_press(cfg->idx_offset + i);
+                    if (callbacks->on_event) {
+                        callbacks->on_event(cfg->idx_offset + i, true);
                     }
                 }
                 is_pressed[i] = true;
             } else if (val < data->thresholds[i] && is_pressed[i]) {
-                // We got a release!
                 STRUCT_SECTION_FOREACH(kscan_cb, callbacks) {
-                    if (callbacks->on_release) {
-                        callbacks->on_release(cfg->idx_offset + i);
+                    if (callbacks->on_event) {
+                        callbacks->on_event(cfg->idx_offset + i, false);
                     }
                 }
                 is_pressed[i] = false;
@@ -157,7 +160,8 @@ static int kscan_enables_get_values(const struct device *dev,
         return -EINVAL;
     }
     const struct kscan_enables_config *cfg = dev->config;
-    memcpy(values, cfg->default_thresholds, cfg->key_amount * sizeof(uint16_t));
+    struct kscan_enables_data *data = dev->data;
+    memcpy(values, data->values, cfg->key_amount * sizeof(uint16_t));
 
     return 0;
 }

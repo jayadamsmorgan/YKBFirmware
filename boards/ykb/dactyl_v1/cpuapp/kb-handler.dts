@@ -1,0 +1,100 @@
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+#include <dt-bindings/kb-handler/kb-key-codes.h>
+
+/ {
+
+    mux1: mux1 {
+        compatible = "mux-gpio";
+        sel-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 11 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 10 GPIO_ACTIVE_HIGH>;
+        channels = <8>;
+        #mux-cells = <0>;
+    };
+    mux2: mux2 {
+        compatible = "mux-gpio";
+        sel-gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 22 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 23 GPIO_ACTIVE_HIGH>;
+        channels = <8>;
+        #mux-cells = <0>;
+    };
+    mux3: mux3 {
+        compatible = "mux-gpio";
+        sel-gpios = <&gpio0 21 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 19 GPIO_ACTIVE_HIGH>,
+                    <&gpio0 29 GPIO_ACTIVE_HIGH>;
+        channels = <8>;
+        #mux-cells = <0>;
+    };
+    mux4: mux4 {
+        compatible = "mux-gpio";
+        sel-gpios = <&gpio0 25 GPIO_ACTIVE_HIGH>,
+                    <&gpio1 9 GPIO_ACTIVE_HIGH>,
+                    <&gpio1 7 GPIO_ACTIVE_HIGH>;
+        channels = <6>;
+        #mux-cells = <0>;
+    };
+
+    kscan1: kscan1 {
+
+        compatible = "kscan-muxes";
+
+        // handles indexes [0-7], [8-15], [16-23], [24-29]
+        idx-offset = <0>;
+        io-channels = <&adc 0>, <&adc 1>, <&adc 2>, <&adc 3>; // P0.04, P0.05, P0.06, P0.07
+        muxes = <&mux1>, <&mux2>, <&mux3>, <&mux4>;
+
+        settle-us = <3>;
+        default-thresholds = <1023>, <1023>, <1023>, <1023>, <1023>,
+                             <1023>, <1023>, <1023>, <1023>, <1023>,
+                             <1023>, <1023>, <1023>, <1023>, <1023>,
+                             <1023>, <1023>, <1023>, <1023>, <1023>,
+                             <1023>, <1023>, <1023>, <1023>, <1023>,
+                             <1023>, <1023>, <1023>, <1023>, <1023>;
+
+        #kscan-cells = <0>;
+    };
+
+    kb_handler: kb-handler {
+
+        kscans = <&kscan1>;
+
+        key-count = <30>;
+
+        default-keymap-layer1 = 
+            // Left (30)
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+
+            // Right (30)
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>;
+
+        default-keymap-layer2 =
+            // Left (30)
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+
+            // Right (30)
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>,
+            <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>, <KEY_NOKEY>;
+    };
+};

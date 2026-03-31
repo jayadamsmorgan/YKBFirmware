@@ -7,7 +7,46 @@
 
 LOG_MODULE_REGISTER(usb_connect, CONFIG_USB_CONNECT_LOG_LEVEL);
 
-static const uint8_t hid_report_desc[] = HID_KEYBOARD_REPORT_DESC();
+#define REPORT_ID_KEYBOARD 0x01
+#define REPORT_ID_MOUSE 0x02
+
+#define HID_KEYBOARD_REPORT_DESC_ID(_id)                                       \
+    HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP),                                     \
+        HID_USAGE(HID_USAGE_GEN_DESKTOP_KEYBOARD),                             \
+        HID_COLLECTION(HID_COLLECTION_APPLICATION), HID_REPORT_ID(_id),        \
+        HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP_KEYPAD), HID_USAGE_MIN8(0xE0),    \
+        HID_USAGE_MAX8(0xE7), HID_LOGICAL_MIN8(0), HID_LOGICAL_MAX8(1),        \
+        HID_REPORT_SIZE(1), HID_REPORT_COUNT(8), HID_INPUT(0x02),              \
+        HID_REPORT_SIZE(8), HID_REPORT_COUNT(1), HID_INPUT(0x03),              \
+        HID_REPORT_SIZE(1), HID_REPORT_COUNT(5),                               \
+        HID_USAGE_PAGE(HID_USAGE_GEN_LEDS), HID_USAGE_MIN8(1),                 \
+        HID_USAGE_MAX8(5), HID_OUTPUT(0x02), HID_REPORT_SIZE(3),               \
+        HID_REPORT_COUNT(1), HID_OUTPUT(0x03), HID_REPORT_SIZE(8),             \
+        HID_REPORT_COUNT(6), HID_LOGICAL_MIN8(0), HID_LOGICAL_MAX8(101),       \
+        HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP_KEYPAD), HID_USAGE_MIN8(0),       \
+        HID_USAGE_MAX8(101), HID_INPUT(0x00), HID_END_COLLECTION
+
+#define HID_MOUSE_REPORT_DESC_ID(_id, _bcnt)                                   \
+    HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP),                                     \
+        HID_USAGE(HID_USAGE_GEN_DESKTOP_MOUSE),                                \
+        HID_COLLECTION(HID_COLLECTION_APPLICATION), HID_REPORT_ID(_id),        \
+        HID_USAGE(HID_USAGE_GEN_DESKTOP_POINTER),                              \
+        HID_COLLECTION(HID_COLLECTION_PHYSICAL),                               \
+        HID_USAGE_PAGE(HID_USAGE_GEN_BUTTON), HID_USAGE_MIN8(1),               \
+        HID_USAGE_MAX8(_bcnt), HID_LOGICAL_MIN8(0), HID_LOGICAL_MAX8(1),       \
+        HID_REPORT_SIZE(1), HID_REPORT_COUNT(_bcnt), HID_INPUT(0x02),          \
+        HID_REPORT_SIZE(8 - (_bcnt)), HID_REPORT_COUNT(1), HID_INPUT(0x01),    \
+        HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP),                                 \
+        HID_USAGE(HID_USAGE_GEN_DESKTOP_X),                                    \
+        HID_USAGE(HID_USAGE_GEN_DESKTOP_Y),                                    \
+        HID_USAGE(HID_USAGE_GEN_DESKTOP_WHEEL), HID_LOGICAL_MIN8(-127),        \
+        HID_LOGICAL_MAX8(127), HID_REPORT_SIZE(8), HID_REPORT_COUNT(3),        \
+        HID_INPUT(0x06), HID_END_COLLECTION, HID_END_COLLECTION
+
+static const uint8_t hid_report_desc[] = {
+    HID_KEYBOARD_REPORT_DESC_ID(REPORT_ID_KEYBOARD),
+    HID_MOUSE_REPORT_DESC_ID(REPORT_ID_MOUSE, 3),
+};
 
 static uint32_t kb_duration;
 static bool kb_ready;
@@ -35,6 +74,20 @@ static int kb_set_report(const struct device *dev, const uint8_t type,
         LOG_WRN("Unsupported report type");
         return -ENOTSUP;
     }
+
+    if (len < 2) {
+        LOG_WRN("Short output report");
+        return -EINVAL;
+    }
+
+    if (buf[0] != REPORT_ID_KEYBOARD) {
+        LOG_WRN("Unexpected output report ID %u", buf[0]);
+        return -ENOTSUP;
+    }
+
+    // uint8_t leds = buf[1];
+
+    // TODO: handle leds
 
     return 0;
 }
@@ -138,7 +191,7 @@ static int usb_connect_init(void) {
 
 SYS_INIT(usb_connect_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
 
-void usb_connect_send_report(uint8_t buffer[8]) {
+static inline void handle_wakeup() {
 #if CONFIG_LIB_USB_CONNECT_REMOTE_WAKEUP
     if (usbd_is_suspended(usbd)) {
         int ret = usbd_wakeup_request(usbd);
@@ -146,10 +199,24 @@ void usb_connect_send_report(uint8_t buffer[8]) {
             LOG_ERR("Remote wakeup error, %d", ret);
         }
     }
-#endif // CONFIG_LIB_USB_CONNECT_REMOTE_WAKEUP
-    int ret = hid_device_submit_report(hid_dev, 8, buffer);
+#endif
+}
+
+void usb_connect_send_kb_report(const hid_kb_report_t *report) {
+    handle_wakeup();
+    int ret = hid_device_submit_report(hid_dev, sizeof(*report),
+                                       (const uint8_t *)report);
     if (ret) {
-        LOG_ERR("HID submit report error, %d", ret);
+        LOG_ERR("Keyboard HID submit report error, %d", ret);
+    }
+}
+
+void usb_connect_send_mouse_report(const hid_mouse_report_t *report) {
+    handle_wakeup();
+    int ret = hid_device_submit_report(hid_dev, sizeof(*report),
+                                       (const uint8_t *)report);
+    if (ret) {
+        LOG_ERR("Mouse HID submit report error, %d", ret);
     }
 }
 

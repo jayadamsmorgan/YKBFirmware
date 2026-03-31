@@ -4,3 +4,8 @@ menu "Drivers"
     rsource "mux/Kconfig"
     rsource "splitlink/Kconfig"
 endmenu
+
+menu "Custom Zephyr Drivers"
+    rsource "charger/Kconfig"
+    rsource "fuel_gauge/Kconfig"
+endmenu

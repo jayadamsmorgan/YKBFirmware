@@ -96,20 +96,26 @@ static void kscan_muxes_thread(void *kscan_dev, void *chan_index, void *_) {
                 goto cleanup;
             }
             uint16_t kscan_offset = chan_offset + i;
+            STRUCT_SECTION_FOREACH(kscan_cb, callbacks) {
+                if (callbacks->on_new_value) {
+                    callbacks->on_new_value(cfg->idx_offset + kscan_offset,
+                                            val);
+                }
+            }
             data->values[kscan_offset] = val;
             if (val >= data->thresholds[kscan_offset] && !is_pressed[i]) {
-                // We got a press!
                 STRUCT_SECTION_FOREACH(kscan_cb, callbacks) {
-                    if (callbacks->on_press) {
-                        callbacks->on_press(cfg->idx_offset + kscan_offset);
+                    if (callbacks->on_event) {
+                        callbacks->on_event(cfg->idx_offset + kscan_offset,
+                                            true);
                     }
                 }
                 is_pressed[i] = true;
             } else if (val < data->thresholds[kscan_offset] && is_pressed[i]) {
-                // We got a release!
                 STRUCT_SECTION_FOREACH(kscan_cb, callbacks) {
-                    if (callbacks->on_release) {
-                        callbacks->on_release(cfg->idx_offset + kscan_offset);
+                    if (callbacks->on_event) {
+                        callbacks->on_event(cfg->idx_offset + kscan_offset,
+                                            false);
                     }
                 }
                 is_pressed[i] = false;
@@ -166,6 +172,9 @@ static int kscan_muxes_get_thresholds(const struct device *dev,
 
 static int kscan_muxes_get_default_thresholds(const struct device *dev,
                                               uint16_t *thresholds) {
+    if (!thresholds) {
+        return -EINVAL;
+    }
     const struct kscan_muxes_config *cfg = dev->config;
     memcpy(thresholds, cfg->default_thresholds,
            cfg->key_amount * sizeof(uint16_t));
@@ -183,6 +192,17 @@ static int kscan_muxes_get_idx_offset(const struct device *dev) {
     return cfg->idx_offset;
 }
 
+static int kscan_muxes_get_values(const struct device *dev, uint16_t *values) {
+    if (!values) {
+        return -EINVAL;
+    }
+    const struct kscan_muxes_config *cfg = dev->config;
+    struct kscan_muxes_data *data = dev->data;
+    memcpy(values, data->values, sizeof(uint16_t) * cfg->key_amount);
+
+    return 0;
+}
+
 DEVICE_API(kscan, kscan_muxes_api) = {
     .get_thresholds = kscan_muxes_get_thresholds,
     .set_thresholds = kscan_muxes_set_thresholds,
@@ -190,6 +210,7 @@ DEVICE_API(kscan, kscan_muxes_api) = {
 
     .get_key_amount = kscan_muxes_get_key_amount,
     .get_idx_offset = kscan_muxes_get_idx_offset,
+    .get_values = kscan_muxes_get_values,
 };
 
 static int kscan_muxes_init(const struct device *dev) {
@@ -241,7 +262,7 @@ static int kscan_muxes_init(const struct device *dev) {
     LOG_INF("KScan (MUXes) ready: %u MUXes", cfg->muxes_count);
 
     for (uint16_t i = 0; i < cfg->muxes_count; ++i) {
-        k_thread_create(&data->threads[i], data->stacks[i], /* see note below */
+        k_thread_create(&data->threads[i], data->stacks[i],
                         CONFIG_KSCAN_MUXES_THREAD_STACK_SIZE,
                         kscan_muxes_thread, (void *)dev, &data->chan_idxs[i],
                         NULL, CONFIG_KSCAN_MUXES_THREAD_PRIORITY, 0, K_NO_WAIT);

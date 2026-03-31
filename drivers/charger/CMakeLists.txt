@@ -1,0 +1,3 @@
+zephyr_library_amend()
+
+zephyr_library_sources_ifdef(CONFIG_CHARGER_BQ25185 src/charger_bq25185.c)

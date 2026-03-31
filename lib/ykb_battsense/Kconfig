@@ -1,0 +1,48 @@
+ZEPHYR_USER := zephyr,user
+
+menuconfig YKB_BATTSENSE
+    bool "Enable YKB BattSense for monitoring battery events"
+	depends on $(dt_node_has_prop,/$(ZEPHYR_USER),ykb-battsense-charger)
+	depends on $(dt_node_has_prop,/$(ZEPHYR_USER),ykb-battsense-fuel-gauge)
+    select CHARGER
+    select FUEL_GAUGE
+    default y
+
+if YKB_BATTSENSE
+
+    module = YKB_BATTSENSE
+    module-str = ykb_battsense
+    source "subsys/logging/Kconfig.template.log_config"
+
+    config YKB_BATTSENSE_THREAD_DEFAULT_SLEEP_TIME
+        int "Amount of milliseconds between battery readings"
+        default 2000
+
+    config YKB_BATTSENSE_CRIT_THRESHOLD
+        int "Battery percentage (RSOC) considered 'critical'"
+        default 1
+        range 0 100
+
+    config YKB_BATTSENSE_LOW_THRESHOLD
+        int "Battery percentage (RSOC) considered 'low'"
+        default 5
+        range YKB_BATTSENSE_CRIT_THRESHOLD 100
+
+    config YKB_BATTSENSE_SHUTOFF_ON_CHARGER_FAILURE
+        bool "Shutdown the system if charger failure detected"
+        depends on $(dt_node_has_prop,/$(ZEPHYR_USER),ykb-battsense-pw-cutoff-gpios)
+        default y
+
+    config YKB_BATTSENSE_INIT_PRIORITY
+        int "BattSense initialization priority"
+        default APPLICATION_INIT_PRIORITY
+
+    config YKB_BATTSENSE_THREAD_PRIORITY
+        int "BattSense thread priority"
+        default 15
+
+    config YKB_BATTSENSE_THREAD_STACK_SIZE
+        int "BattSense thread stack size"
+        default 1024
+
+endif # YKB_BATTSENSE

@@ -9,3 +9,8 @@ manifest:
       repo-path: sdk-nrf
       revision: v3.2.1-patch-nrf3540-mpsl
       import: true
+
+    - name: lumiscript
+      path: modules/lumiscript
+      revision: master
+      url: https://github.com/jayadamsmorgan/lumiscript

@@ -1,0 +1,8 @@
+config CHARGER_BQ25185
+	bool "BQ25185 Battery Charger"
+	default y
+	depends on DT_HAS_TI_BQ25185_ENABLED
+	select GPIO
+	help
+	  Enable BQ25185 battery charger driver.
+

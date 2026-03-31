@@ -1,6 +1,6 @@
 /dts-v1/;
 #include <nordic/nrf5340_cpuapp_qkaa.dtsi>
-#include "dactyl_v1_nrf5340_cpuapp_common.dts"
+#include "cpuapp/common.dts"
 
 / {
 	model = "YKB Dactyl V1 Left board";
@@ -23,7 +23,7 @@
 
 &kb_handler {
     compatible = "kb-handler-splitlink-master";
-    key-count-slave = <34>;
+    key-count-slave = <30>;
     splitlink = <&splitlink>;
 };
 

@@ -70,25 +70,23 @@ static void receive(const struct device *dev, uint8_t *data, size_t len) {
     }
 }
 
-static void on_press(uint16_t key_index) {
+static void on_event(uint16_t key_index, bool pressed) {
     struct kbh_thread_msg data = {
         .key = 'a',
-        .status = 1,
+        .status = pressed,
     };
+    ARG_UNUSED(key_index);
     k_msgq_put(&key_q, &data, K_NO_WAIT);
 }
 
-static void on_release(uint16_t key_index) {
-    struct kbh_thread_msg data = {
-        .key = 'a',
-        .status = 0,
-    };
-    k_msgq_put(&key_q, &data, K_NO_WAIT);
+static void on_value_changed(uint16_t key_index, uint16_t value) {
+    ARG_UNUSED(key_index);
+    ARG_UNUSED(value);
 }
 
 KSCAN_CB_DEFINE(main) = {
-    .on_press = on_press,
-    .on_release = on_release,
+    .on_event = on_event,
+    .on_new_value = on_value_changed,
 };
 
 SPLITLINK_CB_DEFINE(main) = {
@@ -135,20 +133,22 @@ SPLITLINK_CB_DEFINE(main) = {
     .disconnect_cb = disconnect,
 };
 
-static void on_press(uint16_t key_index) {
+static void on_event(uint16_t key_index, bool pressed) {
     uint8_t data[2] = {1, 0};
+    ARG_UNUSED(key_index);
+
+    data[0] = pressed ? 1 : 0;
     splitlink_send(splitlink, data, 2);
 }
 
-static void on_release(uint16_t key_index) {
-    uint8_t data[2] = {0, 0};
-
-    splitlink_send(splitlink, data, 2);
+static void on_value_changed(uint16_t key_index, uint16_t value) {
+    ARG_UNUSED(key_index);
+    ARG_UNUSED(value);
 }
 
 KSCAN_CB_DEFINE(main) = {
-    .on_release = on_release,
-    .on_press = on_press,
+    .on_event = on_event,
+    .on_value_changed = on_value_changed,
 };
 
 int main(void) {

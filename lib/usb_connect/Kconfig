@@ -1,4 +1,4 @@
-config LIB_USB_CONNECT
+menuconfig LIB_USB_CONNECT
     bool "Enable USB Connect library"
     default y if KB_HANDLER && DT_HAS_ZEPHYR_HID_DEVICE_ENABLED
     select HWINFO

@@ -1,0 +1,43 @@
+#ifndef YKB_BATTSENSE_H
+#define YKB_BATTSENSE_H
+
+#include <zephyr/drivers/charger.h>
+
+#include <zephyr/device.h>
+#include <zephyr/sys/iterable_sections.h>
+#include <zephyr/toolchain.h>
+
+#include <stdbool.h>
+#include <stdint.h>
+
+typedef struct {
+    enum charger_status charge_status;
+    uint8_t percentage;
+} ykb_battsense_state_t;
+
+typedef void (*ykb_battsense_cb_t)(ykb_battsense_state_t state);
+
+struct ykb_battsense_cb {
+
+    // Will run every time state of the battery changes
+    ykb_battsense_cb_t on_state_changed;
+
+    // Will run after crossing CONFIG_YKB_BATTSENSE_LOW_THRESHOLD while
+    // discharging.
+    ykb_battsense_cb_t on_low_percentage;
+
+    // Will run after crossing CONFIG_YKB_BATTSENSE_CRIT_THRESHOLD while
+    // discharging.
+    // After all these callbacks are called the system will shutdown
+    // if CONFIG_YKB_BATTSENSE_CRIT_SHUTDOWN is set.
+    ykb_battsense_cb_t on_critical_percentage;
+};
+
+#if CONFIG_YKB_BATTSENSE
+#define YKB_BATTSENSE_DEFINE(name)                                             \
+    STRUCT_SECTION_ITERABLE(ykb_batt_service_cb, __ykb_batt_service_cb__##name)
+#else
+#define YKB_BATTSENSE_DEFINE(name)
+#endif // CONFIG_YKB_BATTSENSE
+
+#endif // YKB_BATTSENSE_H

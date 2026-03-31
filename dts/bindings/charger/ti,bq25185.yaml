@@ -1,0 +1,49 @@
+description: >
+  Texas Instruments BQ25185 standalone Li-Ion battery charger.
+  This charger does not use a control bus (I2C/SPI). Charging status
+  is exposed via STAT1 and STAT2 pins. Optional CE pin can be used
+  to enable/disable charging.
+
+compatible: "ti,bq25185"
+
+include: base.yaml
+
+properties:
+  stat1-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      GPIO connected to STAT1 pin (open-drain output).
+      Indicates charger status. Typically active low.
+
+  stat2-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      GPIO connected to STAT2 pin (open-drain output).
+      Used together with STAT1 to determine charger state.
+
+  vin-present-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      Optional pin signaling that VIN is present on BQ25185.
+      Not present on the IC itself, but it is useful since it is ambigious
+      to tell wether battery is fully charged or not charging at the moment
+      just from STAT1/STAT2 pins.
+
+  ce-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      GPIO connected to CE (Charge Enable) pin.
+      Active level depends on board design (usually active low).
+      If not present assuming that BQ25185's CE pin is always low.
+
+  label:
+    type: string
+    required: false
+
+  status:
+    type: string
+    required: false
