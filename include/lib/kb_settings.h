@@ -36,15 +36,34 @@ typedef struct {
 } kb_battsense_settings_t;
 
 #if CONFIG_YKB_BACKLIGHT
-#define KB_SETTINGS_YKB_BL_SCRIPT_NAME_MAX_LEN 15
+
+#ifndef CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_STORAGE_LEN
+#define CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_STORAGE_LEN                           \
+    4096 // Space for all the scripts
+#endif   // CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_STORAGE_LEN
+
+#define KB_SETTINGS_YKB_BL_SCRIPT_MIN_LEN                                      \
+    64 // Assuming each script takes up at least 64 bytes
+
+#ifndef CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_NAME_MAX_LEN
+#define CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_NAME_MAX_LEN 20
+#endif // CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_NAME_MAX_LEN
+
+#define KB_SETTINGS_MAX_SCRIPTS_POSSIBLE                                       \
+    (CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_STORAGE_LEN /                            \
+     KB_SETTINGS_YKB_BL_SCRIPT_MIN_LEN)
+
 typedef struct {
-    uint8_t scripts[CONFIG_YKB_BL_LUMIVM_CODE_CAPACITY]
-                   [CONFIG_YKB_BL_MAX_SCRIPTS];
-    char script_names[KB_SETTINGS_YKB_BL_SCRIPT_NAME_MAX_LEN]
-                     [CONFIG_YKB_BL_MAX_SCRIPTS];
-    uint16_t scripts_count;
     uint16_t active_script_index;
+    uint16_t script_amount;
+    float speed;
+    uint32_t thread_sleep_ms;
+    uint32_t offsets[KB_SETTINGS_MAX_SCRIPTS_POSSIBLE + 1];
+    char names[CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_NAME_MAX_LEN + 1]
+              [KB_SETTINGS_MAX_SCRIPTS_POSSIBLE];
+    uint8_t backlight_data[CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_STORAGE_LEN];
 } ykb_backlight_settings_t;
+
 #endif // CONFIG_YKB_BACKLIGHT
 
 typedef struct {
@@ -68,10 +87,6 @@ typedef struct {
     uint16_t move_keys_deadzones[KB_MOUSEEMU_MOVE_KEYS_MAX];
     uint16_t scroll_keys_deadzones[KB_MOUSEEMU_SCROLL_KEYS_MAX];
 
-#if CONFIG_YKB_BACKLIGHT
-    ykb_backlight_settings_t backlight;
-#endif // CONFIG_YKB_BACKLIGHT
-
 } kb_mouseemu_settings_t;
 
 typedef struct {
@@ -88,6 +103,10 @@ typedef struct {
     kb_mouseemu_settings_t mouseemu;
 
     kb_battsense_settings_t battsense;
+
+#if CONFIG_YKB_BACKLIGHT
+    ykb_backlight_settings_t backlight;
+#endif // CONFIG_YKB_BACKLIGHT
 
 } kb_settings_t;
 

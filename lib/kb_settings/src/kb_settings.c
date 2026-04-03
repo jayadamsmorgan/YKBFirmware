@@ -1,5 +1,7 @@
 #include <lib/kb_settings.h>
 
+#include <lib/ykb_backlight.h>
+
 #include <drivers/kb_handler.h>
 
 #include <zephyr/logging/log.h>
@@ -82,6 +84,13 @@ static int kb_settings_load_defaults(void) {
         kb_settings.thresholds[i] = thresholds[i];
         kb_settings.maximums[i] = 1023;
     }
+
+#if CONFIG_YKB_BACKLIGHT
+    const ykb_backlight_settings_t *default_backlight_settings =
+        ykb_backlight_get_default_settings();
+    memcpy(&kb_settings.backlight, default_backlight_settings,
+           sizeof(kb_settings.backlight));
+#endif // CONFIG_YKB_BACKLIGHT
 
 cleanup:
 
@@ -223,7 +232,7 @@ load_defaults:
     return err;
 }
 
-SYS_INIT(kb_settings_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
+SYS_INIT(kb_settings_init, POST_KERNEL, CONFIG_KB_SETTINGS_INIT_PRIORITY);
 
 int kb_settings_get(kb_settings_t *settings) {
     if (!settings) {

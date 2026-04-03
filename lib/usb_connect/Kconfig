@@ -41,4 +41,8 @@ if LIB_USB_CONNECT
     config LIB_USB_CONNECT_20_EXTENSION_DESC
         bool "Enable USB2.0 Extension descriptor"
 
+    config LIB_USB_CONNECT_INIT_PRIORITY
+        int "Init priority"
+        default APPLICATION_INIT_PRIORITY
+
 endif # LIB_USB_CONNECT

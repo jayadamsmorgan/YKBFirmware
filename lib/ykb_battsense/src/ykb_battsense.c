@@ -159,7 +159,7 @@ static int ykb_battsense_init(void) {
     return 0;
 }
 
-SYS_INIT(ykb_battsense_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
+SYS_INIT(ykb_battsense_init, POST_KERNEL, CONFIG_YKB_BATTSENSE_INIT_PRIORITY);
 
 static void on_settings_update(kb_settings_t *settings) {
     k_mutex_lock(&battsense_mut, K_FOREVER);

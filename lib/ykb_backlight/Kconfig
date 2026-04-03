@@ -24,6 +24,10 @@ if YKB_BACKLIGHT
         int "Thread priority"
         default 15
 
+    config YKB_BL_INIT_PRIORITY
+        int "Init priority"
+        default APPLICATION_INIT_PRIORITY
+
     menu "Lumiscript VM"
 
         config YKB_BL_MAX_SCRIPTS

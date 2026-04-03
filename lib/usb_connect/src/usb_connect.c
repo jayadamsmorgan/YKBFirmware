@@ -189,7 +189,7 @@ static int usb_connect_init(void) {
     return 0;
 }
 
-SYS_INIT(usb_connect_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
+SYS_INIT(usb_connect_init, POST_KERNEL, CONFIG_LIB_USB_CONNECT_INIT_PRIORITY);
 
 static inline void handle_wakeup() {
 #if CONFIG_LIB_USB_CONNECT_REMOTE_WAKEUP

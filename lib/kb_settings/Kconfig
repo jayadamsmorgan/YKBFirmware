@@ -21,4 +21,20 @@ if LIB_KB_SETTINGS
         depends on $(dt_node_has_prop,$(KB_HANDLER_PATH),key-count-slave)
         default $(dt_node_int_prop_int,$(KB_HANDLER_PATH),key-count-slave)
 
+    config KB_SETTINGS_INIT_PRIORITY
+        int "Init priority"
+        default APPLICATION_INIT_PRIORITY
+
+    if YKB_BACKLIGHT
+
+        config KB_SETTINGS_YKB_BL_SCRIPT_STORAGE_LEN
+            int "Amount of storage (in bytes) reserved for Lumiscript backlight scripts available in KB Settings"
+            default 4096
+
+        config KB_SETTINGS_YKB_BL_SCRIPT_NAME_MAX_LEN
+            int "Maximum amount of characters for a Lumiscript backlight script name"
+            default 15
+
+    endif # YKB_BACKLIGHT
+
 endif # LIB_KB_SETTINGS
