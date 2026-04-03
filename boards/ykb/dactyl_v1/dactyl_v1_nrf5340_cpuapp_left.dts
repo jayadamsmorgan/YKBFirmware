@@ -10,7 +10,7 @@
 		zephyr,sram = &sram0_image;
 		zephyr,flash = &flash0;
 		zephyr,code-partition = &slot0_partition;
-        zephyr,settings-partition = &storage_partition;
+		zephyr,settings-partition = &storage_partition;
 		zephyr,sram-secure-partition = &sram0_s;
 		zephyr,sram-non-secure-partition = &sram0_ns;
 	};
@@ -18,15 +18,14 @@
 };
 
 &splitlink {
-    compatible = "splitlink-ykb-esb-prx";
+	compatible = "splitlink-ykb-esb-prx";
 };
 
 &kb_handler {
-    compatible = "kb-handler-splitlink-master";
-    key-count-slave = <30>;
-    splitlink = <&splitlink>;
+	compatible = "kb-handler-splitlink-master";
+	key-count-slave = <30>;
+	splitlink = <&splitlink>;
 };
-
 
 /* Include default memory partition configuration file */
 #include <nordic/nrf5340_cpuapp_partition.dtsi>

@@ -3,79 +3,62 @@
 #include <zephyr/dt-bindings/led/led.h>
 
 / {
-    zephyr,user {
+	zephyr,user {
 
-        ykb-backlight = <&led_strip>;
+		ykb-backlight = <&led_strip>;
 
-        // Mapping from key index reported from KScans to the index of LED on the strip
-        ykb-backlight-maps =
-            // Left
-            <0>, <1>, <2>, <3>, <4>, <5>,
-            <6>, <7>, <8>, <9>, <10>, <11>,
-            <12>, <13>, <14>, <15>, <16>, <17>,
-            <18>, <19>, <20>, <21>, <22>, <23>,
-            <24>, <25>, <26>, <27>, <28>, <29>,
-            // Right
-            <0>, <1>, <2>, <3>, <4>, <5>,
-            <6>, <7>, <8>, <9>, <10>, <11>,
-            <12>, <13>, <14>, <15>, <16>, <17>,
-            <18>, <19>, <20>, <21>, <22>, <23>,
-            <24>, <25>, <26>, <27>, <28>, <29>;
+		// Mapping from key index reported from KScans to the index of LED on the strip
+		ykb-backlight-maps =
+			// Left
+			<0>, <1>, <2>, <3>, <4>, <5>, <6>, <7>, <8>, <9>, <10>, <11>,
+			<12>, <13>, <14>, <15>, <16>, <17>, <18>, <19>, <20>, <21>, <22>,
+			<23>, <24>, <25>, <26>, <27>, <28>, <29>,
+			// Right
+			<0>, <1>, <2>, <3>, <4>, <5>, <6>, <7>, <8>, <9>, <10>, <11>,
+			<12>, <13>, <14>, <15>, <16>, <17>, <18>, <19>, <20>, <21>, <22>,
+			<23>, <24>, <25>, <26>, <27>, <28>, <29>;
 
-        // Mapping from key index reported from KScans to the approximate 'x' coordinates of the keys [0-1000]
-        ykb-backlight-xs =
-            // Left
-            <0>, <0>, <0>, <0>,
-            <149>, <149>, <149>, <149>,
-            <297>, <297>, <297>, <297>,
-            <419>, <419>, <419>, <419>,
-            <540>, <540>, <540>, <540>,
-            <662>, <662>, <662>, <662>,
-            <695>, <797>, <884>, <945>, <999>, <884>,
-            // Right
-            <0>, <0>, <0>, <0>,
-            <149>, <149>, <149>, <149>,
-            <297>, <297>, <297>, <297>,
-            <419>, <419>, <419>, <419>,
-            <540>, <540>, <540>, <540>,
-            <662>, <662>, <662>, <662>,
-            <695>, <797>, <884>, <945>, <999>, <884>;
+		// Mapping from key index reported from KScans to the approximate 'x' coordinates of the keys [0-1000]
+		ykb-backlight-xs =
+			// Left
+			<0>, <0>, <0>, <0>, <149>, <149>, <149>, <149>, <297>, <297>,
+			<297>, <297>, <419>, <419>, <419>, <419>, <540>, <540>, <540>,
+			<540>, <662>, <662>, <662>, <662>, <695>, <797>, <884>, <945>,
+			<999>, <884>,
+			// Right
+			<0>, <0>, <0>, <0>, <149>, <149>, <149>, <149>, <297>, <297>,
+			<297>, <297>, <419>, <419>, <419>, <419>, <540>, <540>, <540>,
+			<540>, <662>, <662>, <662>, <662>, <695>, <797>, <884>, <945>,
+			<999>, <884>;
 
-        // Mapping from key index reported from KScans to the approximate 'y' coordinates of the keys [0-1000]
-        ykb-backlight-ys = 
-            // Left
-            <0>, <115>, <223>, <338>,
-            <27>, <142>, <250>, <365>,
-            <0>, <115>, <223>, <338>,
-            <14>, <128>, <236>, <351>,
-            <0>, <115>, <223>, <338>,
-            <0>, <115>, <223>, <338>,
-            <608>, <662>, <763>, <655>, <493>, <459>,
-            // Right
-            <0>, <115>, <223>, <338>,
-            <27>, <142>, <250>, <365>,
-            <0>, <115>, <223>, <338>,
-            <14>, <128>, <236>, <351>,
-            <0>, <115>, <223>, <338>,
-            <0>, <115>, <223>, <338>,
-            <608>, <662>, <763>, <655>, <493>, <459>;
+		// Mapping from key index reported from KScans to the approximate 'y' coordinates of the keys [0-1000]
+		ykb-backlight-ys =
+			// Left
+			<0>, <115>, <223>, <338>, <27>, <142>, <250>, <365>, <0>, <115>,
+			<223>, <338>, <14>, <128>, <236>, <351>, <0>, <115>, <223>,
+			<338>, <0>, <115>, <223>, <338>, <608>, <662>, <763>, <655>,
+			<493>, <459>,
+			// Right
+			<0>, <115>, <223>, <338>, <27>, <142>, <250>, <365>, <0>, <115>,
+			<223>, <338>, <14>, <128>, <236>, <351>, <0>, <115>, <223>,
+			<338>, <0>, <115>, <223>, <338>, <608>, <662>, <763>, <655>,
+			<493>, <459>;
 
-    };
+	};
 };
 
 &i2s0 {
-    status = "okay";
-    pinctrl-0 = <&i2s0_default>;
-    pinctrl-1 = <&i2s0_sleep>;
-    pinctrl-names = "default", "sleep";
+	status = "okay";
+	pinctrl-0 = <&i2s0_default>;
+	pinctrl-1 = <&i2s0_sleep>;
+	pinctrl-names = "default", "sleep";
 
-    led_strip: led_strip@0 {
-        compatible = "worldsemi,ws2812-i2s";
-        reg = <0>;
-        status = "okay";
-        chain-length = <34>;
-        color-mapping = <LED_COLOR_ID_GREEN
-                    LED_COLOR_ID_RED
-                    LED_COLOR_ID_BLUE>;
-    };
+	led_strip: led_strip@0 {
+		compatible = "worldsemi,ws2812-i2s";
+		reg = <0>;
+		status = "okay";
+		chain-length = <34>;
+		color-mapping =
+			<LED_COLOR_ID_GREEN LED_COLOR_ID_RED LED_COLOR_ID_BLUE>;
+	};
 };
