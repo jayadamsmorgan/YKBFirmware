@@ -4,7 +4,7 @@
 
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_DECLARE(ykb_strip_backlight);
+LOG_MODULE_DECLARE(ykb_backlight);
 
 #define CONST_CAP CONFIG_YKB_BL_LUMIVM_CONST_CAPACITY
 #define GLOBAL_CAP CONFIG_YKB_BL_LUMIVM_GLOBAL_CAPACITY
@@ -17,15 +17,15 @@ static lumi_vm_state_storage state_storage;
 static lumi_vm_program program;
 static lumi_vm_state state;
 
-static float *constants;
-static float *initial_globals;
-static float *initial_keys;
-static uint8_t *init_code;
-static uint8_t *update_code;
-static uint8_t *render_code;
-static uint32_t *globals;
-static uint32_t *keys;
-static uint32_t *stack;
+static float constants[CONST_CAP];
+static float initial_globals[GLOBAL_CAP];
+static float initial_keys[KEY_VAR_CAP];
+static uint8_t init_code[CODE_CAP];
+static uint8_t update_code[CODE_CAP];
+static uint8_t render_code[CODE_CAP];
+static uint32_t globals[GLOBAL_CAP];
+static uint32_t keys[KEY_VAR_CAP];
+static uint32_t stack[STACK_CAP];
 
 static lumi_vm_requirements req;
 static lumi_vm_error error;

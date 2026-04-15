@@ -6,6 +6,11 @@
 
 / {
 
+	aliases {
+		mcuboot-button0 = &button0;
+		mcuboot-led0 = &led0;
+	};
+
 	chosen {
 		zephyr,console = &uart0;
 		zephyr,shell-uart = &uart0;
@@ -20,14 +25,20 @@
 		esb-default-address = [E7E7E7E7C2C2C2C2];
 	};
 
-	hid_dev_0: hid_dev_0 {
-		compatible = "zephyr,hid-device";
-		label = "HID0";
-		protocol-code = "none";
-		in-report-size = <9>;
-		out-report-size = <2>;
-		in-polling-period-us = <1000>;
-		out-polling-period-us = <1000>;
+	buttons {
+		compatible = "gpio-keys";
+		button0: button0 {
+			gpios = <&gpio0 13 GPIO_ACTIVE_LOW>;
+			label = "Power / Recovery button";
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		led0: led0 {
+			gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;
+			label = "Debug LED";
+		};
 	};
 
 };
@@ -35,6 +46,42 @@
 zephyr_udc0: &usbd {
 	compatible = "nordic,nrf-usbd";
 	status = "okay";
+
+	cdc_acm_uart0 {
+		current-speed = <115200>;
+		compatible = "zephyr,cdc-acm-uart";
+		label = "Zephyr USB CDC-ACM";
+	};
+
+	hid_kbd: hid_kbd {
+		compatible = "zephyr,hid-device";
+		label = "hid_kbd";
+		protocol-code = "keyboard";
+		in-report-size = <8>;
+		out-report-size = <1>;
+		in-polling-period-us = <1000>;
+		out-polling-period-us = <1000>;
+	};
+
+	hid_mouse: hid_mouse {
+		compatible = "zephyr,hid-device";
+		label = "hid_mouse";
+		protocol-code = "mouse";
+		in-report-size = <8>;
+		out-report-size = <1>;
+		in-polling-period-us = <1000>;
+		out-polling-period-us = <1000>;
+	};
+
+	hid_vendor: hid_vendor {
+		compatible = "zephyr,hid-device";
+		label = "hid_vendor";
+		protocol-code = "none";
+		in-report-size = <64>;
+		out-report-size = <64>;
+		in-polling-period-us = <1000>;
+		out-polling-period-us = <1000>;
+	};
 };
 
 &vregmain {
@@ -50,8 +97,11 @@ zephyr_udc0: &usbd {
 };
 
 &lfxo {
-	load-capacitors = "internal";
-	load-capacitance-picofarad = <7>;
+	load-capacitors = "external";
+};
+
+&uicr {
+	nfct-pins-as-gpios;
 };
 
 &adc {
@@ -62,49 +112,55 @@ zephyr_udc0: &usbd {
 
 	channel@0 {
 		reg = <0>;
-		zephyr,gain = "ADC_GAIN_1";
+		zephyr,gain = "ADC_GAIN_1_6";
 		zephyr,reference = "ADC_REF_INTERNAL";
-		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,acquisition-time =
+			<ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 20)>;
 		zephyr,input-positive = <NRF_SAADC_AIN0>;
 		zephyr,resolution = <10>;
 	};
 	channel@1 {
 		reg = <1>;
-		zephyr,gain = "ADC_GAIN_1";
+		zephyr,gain = "ADC_GAIN_1_6";
 		zephyr,reference = "ADC_REF_INTERNAL";
-		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,acquisition-time =
+			<ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 20)>;
 		zephyr,input-positive = <NRF_SAADC_AIN1>;
 		zephyr,resolution = <10>;
 	};
 	channel@2 {
 		reg = <2>;
-		zephyr,gain = "ADC_GAIN_1";
+		zephyr,gain = "ADC_GAIN_1_6";
 		zephyr,reference = "ADC_REF_INTERNAL";
-		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,acquisition-time =
+			<ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 20)>;
 		zephyr,input-positive = <NRF_SAADC_AIN2>;
 		zephyr,resolution = <10>;
 	};
 	channel@3 {
 		reg = <3>;
-		zephyr,gain = "ADC_GAIN_1";
+		zephyr,gain = "ADC_GAIN_1_6";
 		zephyr,reference = "ADC_REF_INTERNAL";
-		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,acquisition-time =
+			<ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 20)>;
 		zephyr,input-positive = <NRF_SAADC_AIN3>;
 		zephyr,resolution = <10>;
 	};
 	channel@5 {
 		reg = <5>;
-		zephyr,gain = "ADC_GAIN_1";
+		zephyr,gain = "ADC_GAIN_1_6";
 		zephyr,reference = "ADC_REF_INTERNAL";
-		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,acquisition-time =
+			<ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 20)>;
 		zephyr,input-positive = <NRF_SAADC_AIN5>;
 		zephyr,resolution = <10>;
 	};
 	channel@7 {
 		reg = <7>;
-		zephyr,gain = "ADC_GAIN_1";
+		zephyr,gain = "ADC_GAIN_1_6";
 		zephyr,reference = "ADC_REF_INTERNAL";
-		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,acquisition-time =
+			<ADC_ACQ_TIME(ADC_ACQ_TIME_MICROSECONDS, 20)>;
 		zephyr,input-positive = <NRF_SAADC_AIN7>;
 		zephyr,resolution = <10>;
 	};
@@ -138,3 +194,34 @@ zephyr_udc0: &usbd {
 	pinctrl-1 = <&uart0_sleep>;
 	pinctrl-names = "default", "sleep";
 };
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x20000>;
+		};
+
+		slot0_partition: partition@20000 {
+			label = "image-0";
+			reg = <0x00020000 0x64000>;
+		};
+
+		slot1_partition: partition@84000 {
+			label = "image-1";
+			reg = <0x00084000 0x64000>;
+		};
+
+		storage_partition: partition@e8000 {
+			label = "storage";
+			reg = <0x000e8000 0x00018000>;
+		};
+	};
+};
+
+#include <nordic/nrf5340_sram_partition.dtsi>
+#include <nordic/nrf5340_shared_sram_partition.dtsi>

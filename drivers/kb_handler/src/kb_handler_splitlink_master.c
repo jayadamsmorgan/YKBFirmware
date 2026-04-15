@@ -2,6 +2,7 @@
 
 #include <drivers/kb_handler.h>
 
+#include <lib/bt_connect.h>
 #include <lib/kb_settings.h>
 #include <lib/usb_connect.h>
 
@@ -63,13 +64,23 @@ struct kbh_thread_msg {
 };
 
 static void send_kb_report(hid_kb_report_t *report) {
-    usb_connect_send_kb_report(report);
-    // TODO: bt
+    if (IS_ENABLED(CONFIG_LIB_USB_CONNECT)) {
+        usb_connect_handle_wakeup();
+        usb_connect_send_kb_report(report);
+    }
+    if (IS_ENABLED(CONFIG_LIB_BT_CONNECT)) {
+        // bt_connect_send_kb_report(report);
+    }
 }
 
 static void send_mouse_report(hid_mouse_report_t *report) {
-    usb_connect_send_mouse_report(report);
-    // TODO: bt
+    if (IS_ENABLED(CONFIG_LIB_USB_CONNECT)) {
+        usb_connect_handle_wakeup();
+        usb_connect_send_mouse_report(report);
+    }
+    if (IS_ENABLED(CONFIG_LIB_BT_CONNECT)) {
+        // bt_connect_send_mouse_report(report);
+    }
 }
 
 static inline bool is_modifier(uint8_t hid) {
@@ -114,7 +125,6 @@ static void build_kb_report(hid_kb_report_t *report, kb_settings_t *settings,
                             bool second_layer_active, bool third_layer_active) {
     report->mods = 0;
     report->reserved = 0;
-    report->report_id = REPORT_ID_KEYBOARD;
     memset(report->keys, 0, sizeof(report->keys));
 
     bool overflow = false;
@@ -226,13 +236,11 @@ static void reset_handler_state(bool *pressed_keys, uint16_t *current_values,
     *second_layer_active = false;
     *third_layer_active = false;
 
-    kb_report->report_id = REPORT_ID_KEYBOARD;
     kb_report->mods = 0;
     kb_report->reserved = 0;
     memset(kb_report->keys, 0, sizeof(kb_report->keys));
     send_kb_report(kb_report);
 
-    mouse_report->report_id = REPORT_ID_MOUSE;
     mouse_report->buttons = 0;
     mouse_report->wheel = 0;
     mouse_report->x = 0;
@@ -286,7 +294,6 @@ static void mouseemu_value_handler(kb_settings_t *settings,
                                    hid_mouse_report_t *report) {
     kb_mouseemu_settings_t *emu = &settings->mouseemu;
 
-    report->report_id = REPORT_ID_MOUSE;
     report->buttons = 0;
     report->x = 0;
     report->y = 0;
@@ -359,10 +366,10 @@ static void kb_handler_thread(void *device, void *_, void *__) {
     uint8_t layer1_keys_count = 0;
     uint8_t layer2_keys_count = 0;
 
-    hid_kb_report_t kb_report = {.report_id = REPORT_ID_KEYBOARD};
-    hid_kb_report_t prev_kb_report = {.report_id = REPORT_ID_KEYBOARD};
-    hid_mouse_report_t mouse_report = {.report_id = REPORT_ID_MOUSE};
-    hid_mouse_report_t prev_mouse_report = {.report_id = REPORT_ID_MOUSE};
+    hid_kb_report_t kb_report = {};
+    hid_kb_report_t prev_kb_report = {};
+    hid_mouse_report_t mouse_report = {};
+    hid_mouse_report_t prev_mouse_report = {};
 
     kb_mode_t active_mode = settings_snapshot->mode;
 
@@ -799,8 +806,8 @@ static inline void kb_handler_sm_on_settings_update(kb_settings_t *settings,
     }
 
     memcpy(&data->settings_snapshot, settings, sizeof(kb_settings_t));
-    mouseemu_check(cfg->key_count + cfg->key_count_slave,
-                   &data->settings_snapshot.mouseemu);
+    // mouseemu_check(cfg->key_count + cfg->key_count_slave,
+    //                &data->settings_snapshot.mouseemu);
 
     for (size_t i = 0; i < cfg->kscans_count; ++i) {
         const struct device *kscan = cfg->kscans[i];
@@ -859,8 +866,8 @@ static int kb_handler_sm_init(const struct device *dev) {
     }
 
     kscans_check(cfg);
-    mouseemu_check(cfg->key_count + cfg->key_count_slave,
-                   &cfg->default_mouseemu);
+    // mouseemu_check(cfg->key_count + cfg->key_count_slave,
+    //                &cfg->default_mouseemu);
 
     return 0;
 }

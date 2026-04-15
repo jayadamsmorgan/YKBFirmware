@@ -18,7 +18,7 @@ if YKB_BACKLIGHT
 
     config YKB_BL_THREAD_STACK_SIZE
         int "Thread stack size"
-        default 1024
+        default 80000
 
     config YKB_BL_THREAD_PRIORITY
         int "Thread priority"
@@ -37,23 +37,23 @@ if YKB_BACKLIGHT
 
         config YKB_BL_LUMIVM_CONST_CAPACITY
             int "Lumiscript VM max amount of constants"
-            default 256
+            default 512
 
         config YKB_BL_LUMIVM_GLOBAL_CAPACITY
             int "Lumiscript VM max amount of global variables"
-            default 128
+            default 256
 
         config YKB_BL_LUMIVM_KEY_VAR_CAPACITY
             int "Lumiscript VM max amount of key variables"
-            default 64
+            default 128
 
         config YKB_BL_LUMIVM_CODE_CAPACITY
             int "Lumiscript VM max size of the bytecode script"
-            default 4096
+            default 8192
 
         config YKB_BL_LUMIVM_STACK_CAPACITY
             int "Lumiscript VM max amount of stack objects"
-            default 128
+            default 256
 
     endmenu
 

@@ -23,7 +23,7 @@ if LIB_KB_SETTINGS
 
     config KB_SETTINGS_INIT_PRIORITY
         int "Init priority"
-        default APPLICATION_INIT_PRIORITY
+        default 140
 
     if YKB_BACKLIGHT
 

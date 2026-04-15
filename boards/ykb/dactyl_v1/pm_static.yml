@@ -1,0 +1,49 @@
+mcuboot:
+  address: 0x00000
+  size: 0x20000
+  region: flash_primary
+
+mcuboot_pad:
+  address: 0x20000
+  size: 0x200
+  region: flash_primary
+
+app:
+  address: 0x20200
+  size: 0x63e00
+  region: flash_primary
+
+mcuboot_primary:
+  address: 0x20000
+  size: 0x64000
+  region: flash_primary
+  span:
+    - mcuboot_pad
+    - app
+
+mcuboot_primary_app:
+  address: 0x20200
+  size: 0x63e00
+  region: flash_primary
+  span:
+    - app
+
+mcuboot_secondary:
+  address: 0x84000
+  size: 0x64000
+  region: flash_primary
+
+storage:
+  address: 0xe8000
+  size: 0x18000
+  region: flash_primary
+
+sram_primary:
+  address: 0x20000000
+  size: 0x70000
+  region: sram_primary
+
+rpmsg_nrf53_sram:
+  address: 0x20070000
+  size: 0x10000
+  region: sram_primary

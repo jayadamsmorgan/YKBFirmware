@@ -44,6 +44,16 @@
 			<338>, <0>, <115>, <223>, <338>, <608>, <662>, <763>, <655>,
 			<493>, <459>;
 
+		// Value (in percent, 1-100) where 100% represents full available brightness (255 on all channels).
+		// The total brightness of each LED will be calculated by the following formula:
+		// 'color_channel * (max_abs_brightness / 100) * (runtime_brightness / 100)'
+		//
+		// !!! CHANGE AT YOUR RISK AS SK6812s CONSUME LOTS OF POWER SO
+		// MAKE SURE YOUR SYSTEM IS CAPABLE OF SUPPLYING SUCH POWER FIRST !!!.
+		//
+		// Feels like 7% is bright enough and doesn't consume much.
+		ykb-backlight-max-abs-brightness = <7>;
+
 	};
 };
 
@@ -57,8 +67,9 @@
 		compatible = "worldsemi,ws2812-i2s";
 		reg = <0>;
 		status = "okay";
-		chain-length = <34>;
+		chain-length = <30>;
 		color-mapping =
 			<LED_COLOR_ID_GREEN LED_COLOR_ID_RED LED_COLOR_ID_BLUE>;
+		reset-delay = <500>;
 	};
 };

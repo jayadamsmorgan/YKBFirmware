@@ -24,6 +24,3 @@
 //     compatible = "kb-handler-splitlink-slave";
 //     splitlink = <&splitlink>;
 // };
-
-/* Include default memory partition configuration file */
-#include <nordic/nrf5340_cpuapp_partition.dtsi>

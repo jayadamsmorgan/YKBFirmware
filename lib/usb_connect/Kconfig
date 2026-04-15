@@ -45,4 +45,28 @@ if LIB_USB_CONNECT
         int "Init priority"
         default APPLICATION_INIT_PRIORITY
 
+    HID_DEV_PATH := $(dt_nodelabel_path,hid_vendor)
+
+    config LIB_USB_CONNECT_MAX_VENDOR_IN_REPORT_SIZE
+        int "In report packet size of vendor HID"
+        range 7 $(dt_node_int_prop_int,$(HID_DEV_PATH),in-report-size)
+        default $(dt_node_int_prop_int,$(HID_DEV_PATH),in-report-size)
+
+    config LIB_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE
+        int "Out report packet size of vendor HID"
+        range 7 $(dt_node_int_prop_int,$(HID_DEV_PATH),out-report-size)
+        default $(dt_node_int_prop_int,$(HID_DEV_PATH),out-report-size)
+
+    config LIB_USB_CONNECT_VENDOR_THREAD_PRIORITY
+        int "Vendor thread priority"
+        default 15
+
+    config LIB_USB_CONNECT_VENDOR_THREAD_STACK_SIZE
+        int "Vendor thread stack size"
+        default 1024
+
+    config LIB_USB_CONNECT_VENDOR_MSGQ_SIZE
+        int "Vendor thread ring buffer size"
+        default 8
+
 endif # LIB_USB_CONNECT

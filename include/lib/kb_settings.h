@@ -54,9 +54,11 @@ typedef struct {
      KB_SETTINGS_YKB_BL_SCRIPT_MIN_LEN)
 
 typedef struct {
+    bool on;
     uint16_t active_script_index;
     uint16_t script_amount;
     float speed;
+    float brightness;
     uint32_t thread_sleep_ms;
     uint32_t offsets[KB_SETTINGS_MAX_SCRIPTS_POSSIBLE + 1];
     char names[CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_NAME_MAX_LEN + 1]

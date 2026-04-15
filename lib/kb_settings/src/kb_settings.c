@@ -1,6 +1,8 @@
 #include <lib/kb_settings.h>
 
+#ifdef CONFIG_YKB_BACKLIGHT
 #include <lib/ykb_backlight.h>
+#endif // CONFIG_YKB_BACKLIGHT
 
 #include <drivers/kb_handler.h>
 

@@ -3,6 +3,51 @@ if BOARD_DACTYL_V1_NRF5340_CPUAPP_LEFT || BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT
 DT_CHOSEN_Z_CODE_PARTITION := zephyr,code-partition
 DT_CHOSEN_Z_SRAM_PARTITION := zephyr,sram-secure-partition
 
+if USB_DEVICE_STACK
+
+config USB_DEVICE_VID
+    default 0x6969
+
+config USB_DEVICE_PID
+    default 0x0001
+
+endif # USB_DEVICE_STACK
+
+if LIB_USB_CONNECT
+
+config LIB_USB_CONNECT_PID
+    default 0x0001
+
+config LIB_USB_CONNECT_PRODUCT
+    default "Dactyl V1"
+
+config LIB_USB_CONNECT_MAX_POWER
+    default 250
+
+endif # LIB_USB_CONNECT
+
+if LIB_BT_CONNECT
+
+config BT_MAX_CONN
+    default 1
+
+config BT_HIDS_MAX_CLIENT_COUNT
+    default 1
+
+config BT_MAX_PAIRED
+    default 2
+
+config BT_DEVICE_NAME
+    default "Dactyl V1"
+
+config BT_DIS_PNP_PID
+    default 0x0001
+
+config BT_DIS_PNP_VER
+    default 0x0001
+
+endif # LIB_BT_CONNECT
+
 if BOARD_DACTYL_V1_NRF5340_CPUAPP && TRUSTED_EXECUTION_SECURE
 
 config FLASH_LOAD_SIZE

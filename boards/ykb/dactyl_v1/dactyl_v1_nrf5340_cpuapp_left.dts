@@ -26,6 +26,3 @@
 	key-count-slave = <30>;
 	splitlink = <&splitlink>;
 };
-
-/* Include default memory partition configuration file */
-#include <nordic/nrf5340_cpuapp_partition.dtsi>
