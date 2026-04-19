@@ -1,10 +1,9 @@
-#define DT_DRV_COMPAT kb_handler_splitlink_master
-
-#include <drivers/kb_handler.h>
+#include <subsys/kb_handler.h>
 
 #include <lib/bt_connect.h>
 #include <lib/kb_settings.h>
 #include <lib/usb_connect.h>
+#include <lib/ykb_protocol.h>
 
 #include <drivers/kscan.h>
 #include <drivers/splitlink.h>
@@ -20,6 +19,30 @@
 #include <string.h>
 
 LOG_MODULE_REGISTER(kb_handler_sm, CONFIG_KB_HANDLER_LOG_LEVEL);
+
+#define Z_USER_PROP(prop) DT_PROP(DT_PATH(zephyr_user), prop)
+#define Z_USER_PROP_OR(prop, val) DT_PROP_OR(DT_PATH(zephyr_user), prop, val)
+#define Z_USER_DEV(prop) DEVICE_DT_GET(Z_USER_PROP(prop))
+
+#define KSCAN_DEV_AND_COMMA(node_id, prop, idx)                                \
+    DEVICE_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, idx)),
+
+static const uint16_t key_count = Z_USER_PROP(kb_handler_key_count);
+static const uint16_t key_count_slave = Z_USER_PROP(kb_handler_key_count_slave);
+
+static const struct device *kscans[] = {DT_FOREACH_PROP_ELEM(
+    DT_PATH(zephyr_user), kb_handler_kscans, KSCAN_DEV_AND_COMMA)};
+
+static const struct device *splitlink = Z_USER_DEV(kb_handler_splitlink);
+
+static const uint8_t default_keymap_layer1[] =
+    Z_USER_PROP(kb_handler_default_keymap_layer1),
+                     static const uint8_t default_keymap_layer2[] =
+                         Z_USER_PROP_OR(kb_handler_default_keymap_layer2, {0}),
+                     static const struct default_keymap_layer3[] =
+                         Z_USER_PROP_OR(kb_handler_defualt_keymap_layer3, {0}),
+
+                     static kb_settings_t settings_snapshot;
 
 enum kbh_thread_msg_type {
     KBH_THREAD_MSG_KEY = 0U,
@@ -564,10 +587,7 @@ kb_handler_sm_key_handler(struct kb_handler_sm_data *dev_data,
         .status = status,
     };
 
-    int err = k_msgq_put(dev_data->thread_q, &data, K_NO_WAIT);
-    if (err) {
-        LOG_WRN("Event keys skipped (err %d)", err);
-    }
+    k_msgq_put(dev_data->thread_q, &data, K_NO_WAIT);
 }
 
 static inline void
@@ -579,87 +599,28 @@ kb_handler_sm_value_handler(struct kb_handler_sm_data *dev_data,
         .value = value,
     };
 
-    int err = k_msgq_put(dev_data->thread_q, &data, K_NO_WAIT);
-    if (err) {
-        LOG_WRN("Event values skipped (err %d)", err);
-    }
+    k_msgq_put(dev_data->thread_q, &data, K_NO_WAIT);
 }
 
-static void parse_splitlink_keys(const struct kb_handler_sm_config *cfg,
-                                 uint8_t *data, size_t data_len,
-                                 struct k_msgq *msgq) {
-    for (size_t i = 0; i < data_len; ++i) {
-        struct kbh_thread_msg msg_data = {
-            .type = KBH_THREAD_MSG_KEY,
-            .key = (data[i] & 0x7F) + cfg->key_count,
-            .status = (data[i] & 0x80) != 0U,
-        };
-
-        int err = k_msgq_put(msgq, &msg_data, K_NO_WAIT);
-        if (err) {
-            LOG_WRN("Event splitlink keys skipped (err %d)", err);
-        }
-    }
-}
-
-static void parse_splitlink_values(const struct kb_handler_sm_config *cfg,
-                                   uint8_t *data, size_t data_len,
-                                   struct k_msgq *msgq) {
-    if ((data_len % 2U) != 0U) {
-        LOG_WRN("Ignoring malformed splitlink values payload of len %zu",
-                data_len);
-        return;
-    }
-
-    for (size_t i = 0; i < data_len / 2U; ++i) {
-        struct kbh_thread_msg msg_data = {
+void splitlink_handler_values_received(uint16_t *values, uint16_t count) {
+    for (uint16_t i = 0; i < count; ++i) {
+        struct kbh_thread_msg data = {
             .type = KBH_THREAD_MSG_VALUE,
-            .key = cfg->key_count + i,
-            .value =
-                ((uint16_t)data[i * 2U]) | (((uint16_t)data[i * 2U + 1U]) << 8),
+            .key = i,
+            .value = values[i],
         };
-
-        if (msg_data.key >= cfg->key_count + cfg->key_count_slave) {
-            break;
-        }
-
-        int err = k_msgq_put(msgq, &msg_data, K_NO_WAIT);
-        if (err) {
-            LOG_WRN("Event splitlink values skipped (err %d)", err);
-        }
+        k_msgq_put(dev_data->thread_q, &data, K_NO_WAIT);
     }
 }
 
-static void kb_handler_sm_splitlink_on_receive(const struct device *dev,
-                                               struct k_msgq *msgq,
-                                               uint8_t *data, size_t data_len) {
-    const struct kb_handler_sm_config *cfg = dev->config;
-
-    if (data_len == 0) {
-        return;
-    }
-
-    switch (data[0]) {
-    case DATA_FLAG_KEYS:
-        parse_splitlink_keys(cfg, ++data, data_len - 1, msgq);
-        break;
-    case DATA_FLAG_VALUES:
-        parse_splitlink_values(cfg, ++data, data_len - 1, msgq);
-        break;
-    case DATA_FLAG_BACKLIGHT:
-        break;
-    default:
-        LOG_ERR("Unknown splitlink data flag '%d' received", data[0]);
-        break;
-    }
-}
+void splitlink_handler_settings_received(kb_settings_t *settings) {}
 
 static inline void kb_handler_sm_splitlink_on_connect(const struct device *dev,
                                                       struct k_msgq *msgq) {
     ARG_UNUSED(dev);
     ARG_UNUSED(msgq);
 
-    LOG_INF("Splitlink slave connected");
+    LOG_INF("SplitLink slave connected");
 }
 
 static inline void
@@ -671,7 +632,7 @@ kb_handler_sm_splitlink_on_disconnect(const struct device *dev,
 
     ARG_UNUSED(dev);
 
-    LOG_WRN("Splitlink slave disconnected");
+    LOG_WRN("SplitLink slave disconnected");
     int err = k_msgq_put(msgq, &data, K_NO_WAIT);
     if (err) {
         LOG_WRN("Event slave keys reset skipped (err %d)", err);
@@ -976,17 +937,6 @@ static int get_default_mouseemu(const struct device *dev,
     return 0;
 }
 
-DEVICE_API(kb_handler, kb_handler_sm_api) = {
-    .get_default_thresholds = get_default_thresholds,
-    .get_default_keymap_layer1 = get_default_keymap_layer1,
-    .get_default_keymap_layer2 = get_default_keymap_layer2,
-    .get_default_keymap_layer3 = get_default_keymap_layer3,
-    .get_default_mouseemu = get_default_mouseemu,
-};
-
-#define KSCAN_DEV_AND_COMMA(node_id, prop, idx)                                \
-    DEVICE_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, idx)),
-
 #define TOTAL_KB_KEY_COUNT(inst)                                               \
     (DT_INST_PROP(inst, key_count) + DT_INST_PROP(inst, key_count_slave))
 
@@ -1005,12 +955,6 @@ DEVICE_API(kb_handler, kb_handler_sm_api) = {
         __kb_handler_sm_default_keymap_layer3__##inst[TOTAL_KB_KEY_COUNT(      \
             inst)] =                                                           \
             DT_INST_PROP_OR(inst, default_keymap_layer3, {KEY_NOKEY});         \
-                                                                               \
-    K_MSGQ_DEFINE(__kb_handler_sm_thread_queue__##inst,                        \
-                  sizeof(struct kbh_thread_msg), CONFIG_KB_HANDLER_MSGQ_SIZE,  \
-                  4);                                                          \
-    K_THREAD_STACK_DEFINE(__kb_handler_sm_thread_stack__##inst,                \
-                          CONFIG_KB_HANDLER_THREAD_STACK_SIZE);                \
                                                                                \
     static const struct kb_handler_sm_config __kb_handler_sm_config__##inst =  \
         {                                                                      \
@@ -1103,21 +1047,15 @@ DEVICE_API(kb_handler, kb_handler_sm_api) = {
         kb_handler_sm_splitlink_on_disconnect(                                 \
             dev, &__kb_handler_sm_thread_queue__##inst);                       \
     }                                                                          \
-    static void kb_handler_sm_splitlink_on_receive__##inst(                    \
-        const struct device *dev, uint8_t *data, size_t data_len) {            \
-        kb_handler_sm_splitlink_on_receive(                                    \
-            dev, &__kb_handler_sm_thread_queue__##inst, data, data_len);       \
-    }                                                                          \
     SPLITLINK_CB_DEFINE(kb_handler_sm) = {                                     \
         .connect_cb = kb_handler_sm_splitlink_on_connect__##inst,              \
         .disconnect_cb = kb_handler_sm_splitlink_on_disconnect__##inst,        \
-        .on_receive_cb = kb_handler_sm_splitlink_on_receive__##inst,           \
     };                                                                         \
                                                                                \
     DEVICE_DT_INST_DEFINE(                                                     \
         inst, kb_handler_sm_init, NULL, &__kb_handler_sm_data__##inst,         \
         &__kb_handler_sm_config__##inst, POST_KERNEL,                          \
-        CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &kb_handler_sm_api);               \
+        CONFIG_KB_HANDLER_INIT_PRIORITY, &kb_handler_sm_api);                  \
                                                                                \
     void kb_handler_sm_on_settings_update__##inst(kb_settings_t *settings) {   \
         kb_handler_sm_on_settings_update(settings, DEVICE_DT_INST_GET(inst));  \

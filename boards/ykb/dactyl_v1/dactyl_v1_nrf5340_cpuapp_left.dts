@@ -6,6 +6,10 @@
 	model = "YKB Dactyl V1 Left board";
 	compatible = "ykb,dactyl-v1-nrf5340-cpuapp-left";
 
+	zephyr,user {
+		kb-handler-key-count-slave = <30>;
+	};
+
 	chosen {
 		zephyr,sram = &sram0_image;
 		zephyr,flash = &flash0;
@@ -19,10 +23,4 @@
 
 &splitlink {
 	compatible = "splitlink-ykb-esb-prx";
-};
-
-&kb_handler {
-	compatible = "kb-handler-splitlink-master";
-	key-count-slave = <30>;
-	splitlink = <&splitlink>;
 };

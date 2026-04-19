@@ -39,6 +39,7 @@ struct splitlink_data {
 
     bool connected;
 
+    struct delayable_device_work init_work;
     struct device_work connect_work;
     struct delayable_device_work disconnect_work;
     struct receiving_device_work receiving_work;

@@ -86,16 +86,14 @@ static void on_esb_callback(ykb_esb_event_t *event, void *user_ptr) {
 #endif // CONFIG_SPLITLINK_LOG_LEVEL == LOG_LEVEL_DBG
 }
 
-int splitlink_esb_init(const struct device *dev) {
-    const struct splitlink_config *cfg = dev->config;
-    struct splitlink_data *data = dev->data;
-
-    // TODO: ESB only initializes after a small delay for some reason, fix later
-    k_sleep(K_MSEC(100));
+static void init_work_handler(struct k_work *work) {
+    struct delayable_device_work *init_work =
+        CONTAINER_OF(work, struct delayable_device_work, d_work.work);
+    const struct splitlink_config *cfg = init_work->dev->config;
 
     ykb_esb_config_t esb_cfg = {
         .mode = YKB_ESB_MODE_PTX,
-        .user_ptr = (void *)dev,
+        .user_ptr = (void *)init_work->dev,
     };
     memcpy(esb_cfg.base_addr_0, cfg->esb_default_address,
            sizeof(esb_cfg.base_addr_0));
@@ -105,12 +103,21 @@ int splitlink_esb_init(const struct device *dev) {
     int err = ykb_esb_init(&esb_cfg, on_esb_callback);
     if (err) {
         LOG_ERR("Unable to initialize YKB ESB: %d", err);
-        return -ENODEV;
     }
+}
+
+static int splitlink_esb_init(const struct device *dev) {
+    const struct splitlink_config *cfg = dev->config;
+    struct splitlink_data *data = dev->data;
 
     data->connect_work.dev = dev;
     data->disconnect_work.dev = dev;
     data->receiving_work.dev = dev;
+
+    // Don't know how to fix that yet, but for some reason ESB only
+    // initializes after some delay and panics somewhere in rpmsg_virtio
+    k_work_init_delayable(&data->init_work.d_work, init_work_handler);
+    k_work_schedule(&data->init_work.d_work, K_MSEC(500));
 
     k_work_init_delayable(&data->disconnect_work.d_work,
                           disconnect_work_handler);
@@ -147,8 +154,8 @@ DEVICE_API(splitlink, splitlink_esb_api) = {
             __splitlink_ykb_esb_ptx_alive_thread_stack__##inst,                \
     };                                                                         \
     DEVICE_DT_INST_DEFINE(                                                     \
-        inst, NULL, NULL, &__splitlink_ykb_esb_ptx_data__##inst,               \
+        inst, splitlink_esb_init, NULL, &__splitlink_ykb_esb_ptx_data__##inst, \
         &__splitlink_ykb_esb_ptx_config__##inst, POST_KERNEL,                  \
-        CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &splitlink_esb_api);
+        CONFIG_SPLITLINK_YKB_ESB_INIT_PRIORITY, &splitlink_esb_api);
 
 DT_INST_FOREACH_STATUS_OKAY(SPLITLINK_YKB_ESB_PTX_DEFINE)

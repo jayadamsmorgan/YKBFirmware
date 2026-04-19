@@ -1,9 +1,0 @@
-# Common fields for KB Handler Splitlink driver
-
-include: kb-handler.yaml
-
-properties:
-  splitlink:
-    type: phandle
-    required: true
-    description: Splitlink driver phandle

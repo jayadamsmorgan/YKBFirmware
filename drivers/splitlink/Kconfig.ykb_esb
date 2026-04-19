@@ -18,19 +18,14 @@ if SPLITLINK_YKB_ESB
 
     endchoice # SPLITLINK_YKB_ESB_ROLE
 
-    config SPLITLINK_YKB_ESB_MAX_PACKETS
-        int "Maximum amount of packets allowed to be sent/received"
-        default 30
-
     config SPLITLINK_YKB_ESB_ALIVE_TIMEOUT
         int "Time after last incoming packet after which disconnect is triggered (ms)"
         default 200
         range 2 1000
 
-    config SPLITLINK_YKB_ESB_MAX_ACTIVE_STREAMS
-        int "Max amount of concurrent streams"
-        default 3
-        range 1 10
+    config SPLITLINK_YKB_ESB_INIT_PRIORITY
+        int "Init priority"
+        default APPLICATION_INIT_PRIORITY
 
     if SPLITLINK_YKB_ESB_PTX
 

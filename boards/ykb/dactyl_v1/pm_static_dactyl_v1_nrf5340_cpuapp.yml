@@ -10,12 +10,12 @@ mcuboot_pad:
 
 app:
   address: 0x20200
-  size: 0x63e00
+  size: 0x47e00
   region: flash_primary
 
 mcuboot_primary:
   address: 0x20000
-  size: 0x64000
+  size: 0x48000
   region: flash_primary
   span:
     - mcuboot_pad
@@ -23,19 +23,31 @@ mcuboot_primary:
 
 mcuboot_primary_app:
   address: 0x20200
-  size: 0x63e00
+  size: 0x47e00
   region: flash_primary
   span:
     - app
 
 mcuboot_secondary:
-  address: 0x84000
-  size: 0x64000
+  address: 0x68000
+  size: 0x48000
   region: flash_primary
 
-storage:
-  address: 0xe8000
-  size: 0x18000
+mcuboot_secondary_1:
+  address: 0xB0000
+  size: 0x40000
+  region: flash_primary
+
+nvs_storage:
+  address: 0xF0000
+  size: 0x10000
+  region: flash_primary
+  span:
+    - settings_storage
+
+settings_storage:
+  address: 0xF0000
+  size: 0x10000
   region: flash_primary
 
 sram_primary:

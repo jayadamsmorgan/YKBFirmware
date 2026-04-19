@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include <zephyr/kernel.h>
 
-#ifndef CONFIG_LIB_YKB_ESB_PACKET_LENGTH
-#define CONFIG_LIB_YKB_ESB_PACKET_LENGTH 32
-#endif // CONFIG_LIB_YKB_ESB_PACKET_LENGTH
-
 typedef enum {
     YKB_ESB_EVT_TX_SUCCESS,
     YKB_ESB_EVT_TX_FAIL,
