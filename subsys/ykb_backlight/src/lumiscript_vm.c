@@ -1,6 +1,6 @@
 #include "lumiscript_vm.h"
 
-#include <lib/kb_settings.h>
+#include <subsys/kb_settings.h>
 
 #include <zephyr/logging/log.h>
 

@@ -1,81 +1,81 @@
 if BOARD_DACTYL_V1_NRF5340_CPUAPP_LEFT || BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT
 
-DT_CHOSEN_Z_CODE_PARTITION := zephyr,code-partition
-DT_CHOSEN_Z_SRAM_PARTITION := zephyr,sram-secure-partition
+    DT_CHOSEN_Z_CODE_PARTITION := zephyr,code-partition
+    DT_CHOSEN_Z_SRAM_PARTITION := zephyr,sram-secure-partition
 
-if USB_DEVICE_STACK
+    if USB_DEVICE_STACK
 
-config USB_DEVICE_VID
-    default 0x6969
+        config USB_DEVICE_VID
+            default 0x6969
 
-config USB_DEVICE_PID
-    default 0x0001
+        config USB_DEVICE_PID
+            default 0x0001
 
-endif # USB_DEVICE_STACK
+    endif # USB_DEVICE_STACK
 
-if KB_HANDLER
+    if KB_HANDLER
 
-choice KB_HANDLER_IMPL
-    default KB_HANDLER_SPLITLINK_MASTER if BOARD_DACTYL_V1_NRF5340_CPUAPP_LEFT
-    default KB_HANDLER_SPLITLINK_SLAVE if BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT
-endchoice
+        choice KB_HANDLER_IMPL
+            default KB_HANDLER_SPLITLINK_MASTER if BOARD_DACTYL_V1_NRF5340_CPUAPP_LEFT
+            default KB_HANDLER_SPLITLINK_SLAVE if BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT
+            endchoice
 
-endif # KB_HANDLER
+    endif # KB_HANDLER
 
-if USB_CONNECT
+    if USB_CONNECT
 
-config USB_CONNECT_PID
-    default 0x0001
+        config USB_CONNECT_PID
+            default 0x0001
 
-config USB_CONNECT_PRODUCT
-    default "Dactyl V1"
+        config USB_CONNECT_PRODUCT
+            default "Dactyl V1"
 
-config USB_CONNECT_MAX_POWER
-    default 250
+        config USB_CONNECT_MAX_POWER
+            default 250
 
-endif # USB_CONNECT
+    endif # USB_CONNECT
 
-if BT_CONNECT
+    if BT_CONNECT
 
-config BT_MAX_CONN
-    default 1
+        config BT_MAX_CONN
+            default 1
 
-config BT_HIDS_MAX_CLIENT_COUNT
-    default 1
+        config BT_HIDS_MAX_CLIENT_COUNT
+            default 1
 
-config BT_MAX_PAIRED
-    default 2
+        config BT_MAX_PAIRED
+            default 2
 
-config BT_DEVICE_NAME
-    default "Dactyl V1"
+        config BT_DEVICE_NAME
+            default "Dactyl V1"
 
-config BT_DIS_PNP_PID
-    default 0x0001
+        config BT_DIS_PNP_PID
+            default 0x0001
 
-config BT_DIS_PNP_VER
-    default 0x0001
+        config BT_DIS_PNP_VER
+            default 0x0001
 
-endif # BT_CONNECT
+    endif # BT_CONNECT
 
-if BOARD_DACTYL_V1_NRF5340_CPUAPP && TRUSTED_EXECUTION_SECURE
+    if BOARD_DACTYL_V1_NRF5340_CPUAPP && TRUSTED_EXECUTION_SECURE
 
-config FLASH_LOAD_SIZE
-	default $(dt_chosen_reg_size_hex,$(DT_CHOSEN_Z_CODE_PARTITION))
+        config FLASH_LOAD_SIZE
+            default $(dt_chosen_reg_size_hex,$(DT_CHOSEN_Z_CODE_PARTITION))
 
-config SRAM_SIZE
-	default $(dt_chosen_reg_size_int,$(DT_CHOSEN_Z_SRAM_PARTITION),0,K)
+        config SRAM_SIZE
+            default $(dt_chosen_reg_size_int,$(DT_CHOSEN_Z_SRAM_PARTITION),0,K)
 
-endif # BOARD_DACTYL_V1_NRF5340_CPUAPP && TRUSTED_EXECUTION_SECURE
+    endif # BOARD_DACTYL_V1_NRF5340_CPUAPP && TRUSTED_EXECUTION_SECURE
 
-config BT_HCI_IPC
-	default y if BT
+    config BT_HCI_IPC
+        default y if BT
 
-config HEAP_MEM_POOL_ADD_SIZE_BOARD
-	int
-	default 4096 if BT_HCI_IPC
+    config HEAP_MEM_POOL_ADD_SIZE_BOARD
+        int
+        default 4096 if BT_HCI_IPC
 
-config NRF_RPC_THREAD_STACK_SIZE
-    int
-    default 4096 if LIB_YKB_ESB
+    config NRF_RPC_THREAD_STACK_SIZE
+        int
+        default 4096 if LIB_YKB_ESB
 
 endif # BOARD_DACTYL_V1_NRF5340_CPUAPP_LEFT || BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT

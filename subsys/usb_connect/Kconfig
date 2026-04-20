@@ -1,5 +1,5 @@
 menuconfig USB_CONNECT
-    bool "Enable USB Connect library"
+    bool "Enable USB Connect subsystem"
     depends on DT_HAS_ZEPHYR_HID_DEVICE_ENABLED
     select HWINFO
     select USB_DEVICE_STACK_NEXT

@@ -6,12 +6,10 @@
 
 LOG_MODULE_DECLARE(usb_connect, CONFIG_USB_CONNECT_LOG_LEVEL);
 
-#define CUSTOM_IN_REPORT_SIZE                                                  \
-    (CONFIG_LIB_USB_CONNECT_MAX_VENDOR_IN_REPORT_SIZE - 1)
+#define CUSTOM_IN_REPORT_SIZE (CONFIG_USB_CONNECT_MAX_VENDOR_IN_REPORT_SIZE - 1)
 #define CUSTOM_OUT_REPORT_SIZE                                                 \
-    (CONFIG_LIB_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE - 1)
-#define CUSTOM_FEATURE_SIZE                                                    \
-    (CONFIG_LIB_USB_CONNECT_MAX_VENDOR_IN_REPORT_SIZE - 1)
+    (CONFIG_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE - 1)
+#define CUSTOM_FEATURE_SIZE (CONFIG_USB_CONNECT_MAX_VENDOR_IN_REPORT_SIZE - 1)
 
 #define YKB_PROTOCOL_DATA_LENGTH                                               \
     (MIN(CUSTOM_IN_REPORT_SIZE, CUSTOM_OUT_REPORT_SIZE) - 6)
@@ -57,16 +55,15 @@ static uint32_t __duration;
 static atomic_bool boot_mode;
 
 K_THREAD_STACK_DEFINE(vendor_hid_thread_stack,
-                      CONFIG_LIB_USB_CONNECT_VENDOR_THREAD_STACK_SIZE);
+                      CONFIG_USB_CONNECT_VENDOR_THREAD_STACK_SIZE);
 
-K_MSGQ_DEFINE(
-    vendor_hid_msgq,
-    sizeof(uint8_t[CONFIG_LIB_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE]),
-    CONFIG_LIB_USB_CONNECT_VENDOR_MSGQ_SIZE, 4);
+K_MSGQ_DEFINE(vendor_hid_msgq,
+              sizeof(uint8_t[CONFIG_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE]),
+              CONFIG_USB_CONNECT_VENDOR_MSGQ_SIZE, 4);
 
 static void vendor_hid_thread(void *a, void *b, void *c) {
 
-    uint8_t buffer[CONFIG_LIB_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE];
+    uint8_t buffer[CONFIG_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE];
 
     while (true) {
         k_msgq_get(&vendor_hid_msgq, buffer, K_FOREVER);
@@ -82,7 +79,7 @@ static void iface_ready(const struct device *dev, const bool ready) {
 static int get_report(const struct device *dev, const uint8_t type,
                       const uint8_t id, const uint16_t len,
                       uint8_t *const buf) {
-    if (len < 1 || len > CONFIG_LIB_USB_CONNECT_MAX_VENDOR_IN_REPORT_SIZE) {
+    if (len < 1 || len > CONFIG_USB_CONNECT_MAX_VENDOR_IN_REPORT_SIZE) {
         LOG_WRN("Unsupported report length %d", len);
         return -ENOTSUP;
     }
@@ -98,7 +95,7 @@ static int set_report(const struct device *dev, const uint8_t type,
         return -ENOTSUP;
     }
 
-    if (len < 1 || len > CONFIG_LIB_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE) {
+    if (len < 1 || len > CONFIG_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE) {
         LOG_WRN("Unsupported report length %d", len);
         return -ENOTSUP;
     }

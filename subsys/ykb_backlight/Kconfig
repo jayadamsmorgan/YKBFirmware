@@ -1,7 +1,7 @@
 ZEPHYR_USER := zephyr,user
 
 menuconfig YKB_BACKLIGHT
-    bool "Enable backlight for LED strip based backlight"
+    bool "Enable backlight subsystem for LED strip based backlight"
 	depends on $(dt_node_has_prop,/$(ZEPHYR_USER),ykb-backlight)
 	depends on $(dt_node_has_prop,/$(ZEPHYR_USER),ykb-backlight-maps)
     depends on $(dt_node_has_prop,/$(ZEPHYR_USER),ykb-backlight-xs)

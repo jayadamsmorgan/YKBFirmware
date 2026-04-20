@@ -1,6 +1,6 @@
-#include <lib/ykb_battsense.h>
+#include <subsys/ykb_battsense.h>
 
-#include <lib/kb_settings.h>
+#include <subsys/kb_settings.h>
 
 #include <zephyr/drivers/charger.h>
 #include <zephyr/drivers/emul_fuel_gauge.h>

@@ -1,5 +1,5 @@
 menuconfig BT_CONNECT
-    bool "Enable BT Connect library"
+    bool "Enable BT Connect subsystem"
     select BT
     select BT_SMP
     select BT_PERIPHERAL
@@ -17,6 +17,12 @@ if BT_CONNECT
     module = BT_CONNECT
     module-str = bt_connect
     source "subsys/logging/Kconfig.template.log_config"
+
+    configdefault BT_MAX_CONN
+        default 1
+
+    configdefault BT_MAX_PAIRED
+        default 2
 
     configdefault BT_ATT_TX_COUNT
         default 5
@@ -37,12 +43,19 @@ if BT_CONNECT
         default 20
 
     configdefault BT_DIS_MANUF_NAME_STR
-        default "YarmanKB"
+        default "YarmanKeyboards"
 
     configdefault BT_DIS_PNP_VID_SRC
         default 2
 
     configdefault BT_DIS_PNP_VID
         default 0x6969
+
+    configdefault BT_HIDS_MAX_CLIENT_COUNT
+        default 1
+
+    choice BT_HIDS_DEFAULT_PERM
+        default BT_HIDS_DEFAULT_PERM_RW_ENCRYPT
+    endchoice
     
 endif # BT_CONNECT

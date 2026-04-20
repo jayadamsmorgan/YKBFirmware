@@ -1,5 +1,5 @@
 menuconfig KB_SETTINGS
-    bool "Enable KB Settings library"
+    bool "Enable KB Settings subsystem"
     depends on KB_HANDLER
     select SETTINGS
 

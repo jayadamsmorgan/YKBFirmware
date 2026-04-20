@@ -2,7 +2,7 @@
 
 #include "lumiscript_vm.h"
 
-#include <lib/kb_settings.h>
+#include <subsys/kb_settings.h>
 
 #include <drivers/kscan.h>
 

@@ -1,7 +1,7 @@
 ZEPHYR_USER := zephyr,user
 
 menuconfig YKB_BATTSENSE
-    bool "Enable YKB BattSense for monitoring battery events"
+    bool "Enable YKB BattSense subsystem for monitoring battery events"
 	depends on $(dt_node_has_prop,/$(ZEPHYR_USER),ykb-battsense-charger)
 	depends on $(dt_node_has_prop,/$(ZEPHYR_USER),ykb-battsense-fuel-gauge)
     select CHARGER
