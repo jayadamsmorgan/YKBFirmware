@@ -1,7 +1,2 @@
-add_subdirectory_ifdef(CONFIG_LIB_BT_CONNECT bt_connect)
-add_subdirectory_ifdef(CONFIG_LIB_KB_SETTINGS kb_settings)
-add_subdirectory_ifdef(CONFIG_LIB_USB_CONNECT usb_connect)
-add_subdirectory_ifdef(CONFIG_YKB_BATTSENSE ykb_battsense)
 add_subdirectory_ifdef(CONFIG_LIB_YKB_ESB ykb_esb)
-add_subdirectory_ifdef(CONFIG_YKB_BACKLIGHT ykb_backlight)
 add_subdirectory_ifdef(CONFIG_LIB_YKB_TIMESLOT ykb_timeslot)

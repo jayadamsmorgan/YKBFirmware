@@ -8,6 +8,7 @@
 		kb-handler-kscans = <&kscan1>;
 		kb-handler-splitlink = <&splitlink>;
 		kb-handler-key-count = <30>;
+        kb-handler-key-count-slave = <30>;
 
 		kb-handler-default-keymap-layer1 =
 			// Left (30)

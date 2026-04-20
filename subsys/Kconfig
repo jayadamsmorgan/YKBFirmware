@@ -1,0 +1,10 @@
+menu "YKB Subsystems"
+
+    rsource "bt_connect/Kconfig"
+    rsource "kb_settings/Kconfig"
+    rsource "ykb_battsense/Kconfig"
+    rsource "usb_connect/Kconfig"
+    rsource "kb_handler/Kconfig"
+    rsource "ykb_backlight/Kconfig"
+
+endmenu

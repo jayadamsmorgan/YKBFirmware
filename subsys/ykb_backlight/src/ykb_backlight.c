@@ -1,4 +1,4 @@
-#include <lib/ykb_backlight.h>
+#include <subsys/ykb_backlight.h>
 
 #include "lumiscript_vm.h"
 

@@ -20,10 +20,6 @@ CONFIG_UART_CONSOLE=y
 # Enable CPUNET
 CONFIG_SOC_NRF53_CPUNET_ENABLE=y
 
-# Enable Connect libraries
-CONFIG_LIB_USB_CONNECT=y
-CONFIG_LIB_BT_CONNECT=y
-
 # Enable Flash as SettingsAPI backend
 CONFIG_FLASH=y
 CONFIG_NVS=y

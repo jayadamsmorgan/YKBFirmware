@@ -1,72 +1,72 @@
-menuconfig LIB_USB_CONNECT
+menuconfig USB_CONNECT
     bool "Enable USB Connect library"
-    default y if KB_HANDLER && DT_HAS_ZEPHYR_HID_DEVICE_ENABLED
+    depends on DT_HAS_ZEPHYR_HID_DEVICE_ENABLED
     select HWINFO
     select USB_DEVICE_STACK_NEXT
     select USBD_HID_SUPPORT
 
-if LIB_USB_CONNECT
+if USB_CONNECT
 
     module = USB_CONNECT
     module-str = usb_connect
     source "subsys/logging/Kconfig.template.log_config"
 
-    config LIB_USB_CONNECT_SELF_POWERED
+    config USB_CONNECT_SELF_POWERED
         bool "Enable USB device Self-powered attribute"
         default y
 
-    config LIB_USB_CONNECT_REMOTE_WAKEUP
+    config USB_CONNECT_REMOTE_WAKEUP
         bool "Enable remote wakeup feature"
         default y
 
-    config LIB_USB_CONNECT_VID
+    config USB_CONNECT_VID
         hex "USB device vendor ID"
         default 0x6969
     
-    config LIB_USB_CONNECT_PID
+    config USB_CONNECT_PID
         hex "USB device product ID"
 
-    config LIB_USB_CONNECT_MANUFACTURER
+    config USB_CONNECT_MANUFACTURER
         string "USB device manufacturer string"
         default "YarmanKB"
 
-    config LIB_USB_CONNECT_PRODUCT
+    config USB_CONNECT_PRODUCT
         string "USB device product string"
 
-    config LIB_USB_CONNECT_MAX_POWER
+    config USB_CONNECT_MAX_POWER
         int "USB Max Power value"
         range 1 250
         default 250
 
-    config LIB_USB_CONNECT_20_EXTENSION_DESC
+    config USB_CONNECT_20_EXTENSION_DESC
         bool "Enable USB2.0 Extension descriptor"
 
-    config LIB_USB_CONNECT_INIT_PRIORITY
+    config USB_CONNECT_INIT_PRIORITY
         int "Init priority"
         default APPLICATION_INIT_PRIORITY
 
     HID_DEV_PATH := $(dt_nodelabel_path,hid_vendor)
 
-    config LIB_USB_CONNECT_MAX_VENDOR_IN_REPORT_SIZE
+    config USB_CONNECT_MAX_VENDOR_IN_REPORT_SIZE
         int "In report packet size of vendor HID"
         range 7 $(dt_node_int_prop_int,$(HID_DEV_PATH),in-report-size)
         default $(dt_node_int_prop_int,$(HID_DEV_PATH),in-report-size)
 
-    config LIB_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE
+    config USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE
         int "Out report packet size of vendor HID"
         range 7 $(dt_node_int_prop_int,$(HID_DEV_PATH),out-report-size)
         default $(dt_node_int_prop_int,$(HID_DEV_PATH),out-report-size)
 
-    config LIB_USB_CONNECT_VENDOR_THREAD_PRIORITY
+    config USB_CONNECT_VENDOR_THREAD_PRIORITY
         int "Vendor thread priority"
         default 15
 
-    config LIB_USB_CONNECT_VENDOR_THREAD_STACK_SIZE
+    config USB_CONNECT_VENDOR_THREAD_STACK_SIZE
         int "Vendor thread stack size"
         default 1024
 
-    config LIB_USB_CONNECT_VENDOR_MSGQ_SIZE
+    config USB_CONNECT_VENDOR_MSGQ_SIZE
         int "Vendor thread ring buffer size"
         default 8
 
-endif # LIB_USB_CONNECT
+endif # USB_CONNECT

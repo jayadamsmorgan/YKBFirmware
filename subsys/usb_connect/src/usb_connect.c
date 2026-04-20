@@ -1,4 +1,4 @@
-#include <lib/usb_connect.h>
+#include <subsys/usb_connect.h>
 
 #include "hid_devices/hid_devices.h"
 #include "usbd_init.h"
@@ -76,10 +76,10 @@ static int usb_connect_init(void) {
     return 0;
 }
 
-SYS_INIT(usb_connect_init, POST_KERNEL, CONFIG_LIB_USB_CONNECT_INIT_PRIORITY);
+SYS_INIT(usb_connect_init, POST_KERNEL, CONFIG_USB_CONNECT_INIT_PRIORITY);
 
 void usb_connect_handle_wakeup(void) {
-#if CONFIG_LIB_USB_CONNECT_REMOTE_WAKEUP
+#if CONFIG_USB_CONNECT_REMOTE_WAKEUP
     if (usbd_is_suspended(usbd)) {
         int ret = usbd_wakeup_request(usbd);
         if (ret) {

@@ -1,7 +1,7 @@
 #ifndef LIB_BT_CONNECT_H
 #define LIB_BT_CONNECT_H
 
-#include <lib/usb_connect.h>
+#include <subsys/usb_connect.h>
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/sys/iterable_sections.h>

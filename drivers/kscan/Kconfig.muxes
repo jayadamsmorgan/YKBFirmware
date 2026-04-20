@@ -1,6 +1,7 @@
 config KSCAN_MUXES
     bool "Enable KScan driver for polling with multiplexors"
-    default y if DT_HAS_KSCAN_MUXES_ENABLED
+    depends on DT_HAS_KSCAN_MUXES_ENABLED
+    default y
     select MUX
 
 if KSCAN_MUXES

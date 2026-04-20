@@ -1,11 +1,12 @@
-#include <lib/kb_settings.h>
+#include <subsys/kb_settings.h>
 
 #ifdef CONFIG_YKB_BACKLIGHT
-#include <lib/ykb_backlight.h>
+#include <subsys/ykb_backlight.h>
 #endif // CONFIG_YKB_BACKLIGHT
 
-#include <drivers/kb_handler.h>
+#include <subsys/kb_handler.h>
 
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/settings/settings.h>
 #include <zephyr/toolchain.h>
@@ -19,8 +20,6 @@
 #define KB_SETTINGS_KEY KB_SETTINGS_NS "/" KB_SETTINGS_ITEM
 
 LOG_MODULE_REGISTER(kb_settings, CONFIG_KB_SETTINGS_LOG_LEVEL);
-
-const struct device *kb_handler_dev = DEVICE_DT_GET(DT_NODELABEL(kb_handler));
 
 // Increment every time kb_settings_image_t or it's contents change
 #define KB_SETTINGS_IMAGE_VERSION 2
@@ -55,30 +54,26 @@ static int kb_settings_load_defaults(void) {
 
     kb_settings.mode = KB_MODE_NORMAL;
 
-    err = kb_handler_get_default_keymap_layer1(kb_handler_dev,
-                                               kb_settings.mappings_layer1);
+    err = kb_handler_get_default_keymap_layer1(kb_settings.mappings_layer1);
     if (err) {
         goto cleanup;
     }
-    err = kb_handler_get_default_keymap_layer2(kb_handler_dev,
-                                               kb_settings.mappings_layer2);
+    err = kb_handler_get_default_keymap_layer2(kb_settings.mappings_layer2);
     if (err) {
         goto cleanup;
     }
-    err = kb_handler_get_default_keymap_layer3(kb_handler_dev,
-                                               kb_settings.mappings_layer3);
+    err = kb_handler_get_default_keymap_layer3(kb_settings.mappings_layer3);
     if (err) {
         goto cleanup;
     }
 
-    err =
-        kb_handler_get_default_mouseemu(kb_handler_dev, &kb_settings.mouseemu);
+    err = kb_handler_get_default_mouseemu(&kb_settings.mouseemu);
     if (err) {
         goto cleanup;
     }
 
     uint16_t thresholds[TOTAL_KEY_COUNT];
-    err = kb_handler_get_default_thresholds(kb_handler_dev, thresholds);
+    err = kb_handler_get_default_thresholds(thresholds);
     if (err) {
         goto cleanup;
     }

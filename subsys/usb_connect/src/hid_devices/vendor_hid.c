@@ -1,5 +1,7 @@
 #include "hid_devices.h"
 
+#include <subsys/usb_connect.h>
+
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(usb_connect, CONFIG_USB_CONNECT_LOG_LEVEL);

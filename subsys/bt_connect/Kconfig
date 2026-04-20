@@ -1,4 +1,4 @@
-menuconfig LIB_BT_CONNECT
+menuconfig BT_CONNECT
     bool "Enable BT Connect library"
     select BT
     select BT_SMP
@@ -12,7 +12,7 @@ menuconfig LIB_BT_CONNECT
     select SETTINGS
     select BT_SETTINGS
 
-if LIB_BT_CONNECT
+if BT_CONNECT
 
     module = BT_CONNECT
     module-str = bt_connect
@@ -45,4 +45,4 @@ if LIB_BT_CONNECT
     configdefault BT_DIS_PNP_VID
         default 0x6969
     
-endif # LIB_BT_CONNECT
+endif # BT_CONNECT

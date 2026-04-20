@@ -1,5 +1,6 @@
 menuconfig LIB_YKB_ESB
     bool "Enable YKB ESB library"
+    default n
     depends on SOC_SERIES_NRF53X || SOC_SERIES_NRF52X
     select LIB_YKB_ESB_IMPL
 

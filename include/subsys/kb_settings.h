@@ -1,5 +1,5 @@
-#ifndef LIB_KB_SETTINGS_H_
-#define LIB_KB_SETTINGS_H_
+#ifndef KB_SETTINGS_H_
+#define KB_SETTINGS_H_
 
 #include <zephyr/sys/iterable_sections.h>
 #include <zephyr/toolchain.h>
@@ -131,4 +131,4 @@ int kb_settings_get(kb_settings_t *settings);
 // Returns 0 on success, negative value otherwise.
 int kb_settings_apply(kb_settings_t *settings);
 
-#endif // LIB_KB_SETTINGS_H_
+#endif // KB_SETTINGS_H_

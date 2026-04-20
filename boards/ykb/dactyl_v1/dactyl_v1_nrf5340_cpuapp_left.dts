@@ -7,7 +7,6 @@
 	compatible = "ykb,dactyl-v1-nrf5340-cpuapp-left";
 
 	zephyr,user {
-		kb-handler-key-count-slave = <30>;
 	};
 
 	chosen {

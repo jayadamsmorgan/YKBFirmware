@@ -1,6 +1,7 @@
 config MUX_GPIO
 	bool "GPIO-controlled generic multiplexer driver"
-	default y if DT_HAS_MUX_GPIO_ENABLED
+	depends on DT_HAS_MUX_GPIO_ENABLED
+    default y
 	select GPIO
 	help
 	  Enable this option to use the GPIO-controlled multiplexer driver.

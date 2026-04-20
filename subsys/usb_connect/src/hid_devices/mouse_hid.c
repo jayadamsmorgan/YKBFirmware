@@ -1,53 +1,49 @@
 #include "hid_devices.h"
 
-#include <lib/usb_connect.h>
+#include <subsys/usb_connect.h>
 
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(usb_connect, CONFIG_USB_CONNECT_LOG_LEVEL);
 
-static const uint8_t hid_kbd_report_desc[] = {
+static const uint8_t hid_mouse_report_desc[] = {
     HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP),
-    HID_USAGE(HID_USAGE_GEN_DESKTOP_KEYBOARD),
+    HID_USAGE(HID_USAGE_GEN_DESKTOP_MOUSE),
     HID_COLLECTION(HID_COLLECTION_APPLICATION),
 
-    HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP_KEYPAD),
-    HID_USAGE_MIN8(0xE0),
-    HID_USAGE_MAX8(0xE7),
+    HID_USAGE(HID_USAGE_GEN_DESKTOP_POINTER),
+    HID_COLLECTION(HID_COLLECTION_PHYSICAL),
+
+    HID_USAGE_PAGE(HID_USAGE_GEN_BUTTON),
+    HID_USAGE_MIN8(1),
+    HID_USAGE_MAX8(3),
     HID_LOGICAL_MIN8(0),
     HID_LOGICAL_MAX8(1),
     HID_REPORT_SIZE(1),
-    HID_REPORT_COUNT(8),
+    HID_REPORT_COUNT(3),
     HID_INPUT(0x02),
 
-    HID_REPORT_SIZE(8),
+    HID_REPORT_SIZE(5),
     HID_REPORT_COUNT(1),
-    HID_INPUT(0x03),
+    HID_INPUT(0x01),
 
-    HID_REPORT_SIZE(1),
-    HID_REPORT_COUNT(5),
-    HID_USAGE_PAGE(HID_USAGE_GEN_LEDS),
-    HID_USAGE_MIN8(1),
-    HID_USAGE_MAX8(5),
-    HID_OUTPUT(0x02),
-
-    HID_REPORT_SIZE(3),
-    HID_REPORT_COUNT(1),
-    HID_OUTPUT(0x03),
-
+    HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP),
+    HID_USAGE(HID_USAGE_GEN_DESKTOP_X),
+    HID_USAGE(HID_USAGE_GEN_DESKTOP_Y),
+    HID_USAGE(HID_USAGE_GEN_DESKTOP_WHEEL),
+    HID_LOGICAL_MIN8(-127),
+    HID_LOGICAL_MAX8(127),
     HID_REPORT_SIZE(8),
-    HID_REPORT_COUNT(6),
-    HID_LOGICAL_MIN8(0),
-    HID_LOGICAL_MAX8(101),
-    HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP_KEYPAD),
-    HID_USAGE_MIN8(0),
-    HID_USAGE_MAX8(101),
-    HID_INPUT(0x00),
+    HID_REPORT_COUNT(3),
+    HID_INPUT(0x06),
+
+    HID_END_COLLECTION,
 
     HID_END_COLLECTION,
 };
 
-static const struct device *hid_kbd_dev = DEVICE_DT_GET(DT_NODELABEL(hid_kbd));
+static const struct device *hid_mouse_dev =
+    DEVICE_DT_GET(DT_NODELABEL(hid_mouse));
 
 static atomic_bool __ready;
 static uint32_t __duration;
@@ -101,7 +97,7 @@ static void output_report(const struct device *dev, const uint16_t len,
 
 static void set_protocol(const struct device *dev, const uint8_t proto) {
     ATOMIC_STORE(&boot_mode, proto == HID_PROTOCOL_BOOT);
-    LOG_INF("hid_kbd in %s mode",
+    LOG_INF("hid_mouse in %s mode",
             proto == HID_PROTOCOL_BOOT ? "boot" : "report");
 }
 
@@ -115,32 +111,30 @@ static struct hid_device_ops ops = {
     .output_report = output_report,
 };
 
-int usb_connect_init_kbd_hid(void) {
-    if (!device_is_ready(hid_kbd_dev)) {
-        LOG_ERR("hid_kbd not ready");
+int usb_connect_init_mouse_hid(void) {
+    if (!device_is_ready(hid_mouse_dev)) {
+        LOG_ERR("hid_mouse not ready");
         return -EIO;
     }
 
-    int err = hid_device_register(hid_kbd_dev, hid_kbd_report_desc,
-                                  sizeof(hid_kbd_report_desc), &ops);
+    int err = hid_device_register(hid_mouse_dev, hid_mouse_report_desc,
+                                  sizeof(hid_mouse_report_desc), &ops);
     if (err) {
-        LOG_ERR("hid_kbd register: %d", err);
+        LOG_ERR("hid_mouse register: %d", err);
         return err;
     }
 
     return 0;
 }
 
-void usb_connect_send_kb_report(const hid_kb_report_t *report) {
+void usb_connect_send_mouse_report(const hid_mouse_report_t *report) {
     bool ready = ATOMIC_LOAD(&__ready);
     if (!ready) {
-        LOG_ERR("send_kb_report: not ready");
         return;
     }
-    int err = hid_device_submit_report(hid_kbd_dev, sizeof(hid_kb_report_t),
-                                       (const uint8_t *)report);
+    int err = hid_device_submit_report(
+        hid_mouse_dev, sizeof(hid_mouse_report_t), (const uint8_t *)report);
     if (err) {
-        LOG_ERR("send_kb_report: %d", err);
+        LOG_ERR("Error submitting mouse report: %d", err);
     }
-    LOG_INF("send_kb_report: sent");
 }

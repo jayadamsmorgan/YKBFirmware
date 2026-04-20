@@ -17,31 +17,29 @@ static const char *const blocklist[] = {
 };
 
 USBD_DEVICE_DEFINE(usbd, DEVICE_DT_GET(DT_NODELABEL(zephyr_udc0)),
-                   CONFIG_LIB_USB_CONNECT_VID, CONFIG_LIB_USB_CONNECT_PID);
+                   CONFIG_USB_CONNECT_VID, CONFIG_USB_CONNECT_PID);
 
 USBD_DESC_LANG_DEFINE(lang);
-USBD_DESC_MANUFACTURER_DEFINE(mfr, CONFIG_LIB_USB_CONNECT_MANUFACTURER);
-USBD_DESC_PRODUCT_DEFINE(product, CONFIG_LIB_USB_CONNECT_PRODUCT);
+USBD_DESC_MANUFACTURER_DEFINE(mfr, CONFIG_USB_CONNECT_MANUFACTURER);
+USBD_DESC_PRODUCT_DEFINE(product, CONFIG_USB_CONNECT_PRODUCT);
 IF_ENABLED(CONFIG_HWINFO, (USBD_DESC_SERIAL_NUMBER_DEFINE(sn)));
 
 USBD_DESC_CONFIG_DEFINE(fs_cfg_desc, "FS Configuration");
 USBD_DESC_CONFIG_DEFINE(hs_cfg_desc, "HS Configuration");
 
 static const uint8_t attributes =
-    (IS_ENABLED(CONFIG_LIB_USB_CONNECT_SELF_POWERED) ? USB_SCD_SELF_POWERED
-                                                     : 0) |
-    (IS_ENABLED(CONFIG_LIB_USB_CONNECT_REMOTE_WAKEUP) ? USB_SCD_REMOTE_WAKEUP
-                                                      : 0);
+    (IS_ENABLED(CONFIG_USB_CONNECT_SELF_POWERED) ? USB_SCD_SELF_POWERED : 0) |
+    (IS_ENABLED(CONFIG_USB_CONNECT_REMOTE_WAKEUP) ? USB_SCD_REMOTE_WAKEUP : 0);
 
 /* Full speed configuration */
-USBD_CONFIGURATION_DEFINE(fs_config, attributes,
-                          CONFIG_LIB_USB_CONNECT_MAX_POWER, &fs_cfg_desc);
+USBD_CONFIGURATION_DEFINE(fs_config, attributes, CONFIG_USB_CONNECT_MAX_POWER,
+                          &fs_cfg_desc);
 
 /* High speed configuration */
-USBD_CONFIGURATION_DEFINE(hs_config, attributes,
-                          CONFIG_LIB_USB_CONNECT_MAX_POWER, &hs_cfg_desc);
+USBD_CONFIGURATION_DEFINE(hs_config, attributes, CONFIG_USB_CONNECT_MAX_POWER,
+                          &hs_cfg_desc);
 
-#if CONFIG_LIB_USB_CONNECT_20_EXTENSION_DESC
+#if CONFIG_USB_CONNECT_20_EXTENSION_DESC
 
 static const struct usb_bos_capability_lpm bos_cap_lpm = {
     .bLength = sizeof(struct usb_bos_capability_lpm),
@@ -52,7 +50,7 @@ static const struct usb_bos_capability_lpm bos_cap_lpm = {
 
 USBD_DESC_BOS_DEFINE(usbext, sizeof(bos_cap_lpm), &bos_cap_lpm);
 
-#endif // CONFIG_LIB_USB_CONNECT_20_EXTENSION_DESC
+#endif // CONFIG_USB_CONNECT_20_EXTENSION_DESC
 
 static void fix_code_triple(struct usbd_context *uds_ctx,
                             const enum usbd_speed speed) {
@@ -135,7 +133,7 @@ struct usbd_context *usbd_setup_device(usbd_msg_cb_t msg_cb) {
         }
     }
 
-#if CONFIG_LIB_USB_CONNECT_20_EXTENSION_DESC
+#if CONFIG_USB_CONNECT_20_EXTENSION_DESC
 
     (void)usbd_device_set_bcd_usb(&usbd, USBD_SPEED_FS, 0x0201);
     (void)usbd_device_set_bcd_usb(&usbd, USBD_SPEED_HS, 0x0201);
@@ -146,7 +144,7 @@ struct usbd_context *usbd_setup_device(usbd_msg_cb_t msg_cb) {
         return NULL;
     }
 
-#endif // CONFIG_LIB_USB_CONNECT_20_EXTENSION_DESC
+#endif // CONFIG_USB_CONNECT_20_EXTENSION_DESC
 
     return &usbd;
 }

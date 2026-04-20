@@ -1,9 +1,10 @@
 #include <subsys/kb_handler.h>
 
-#include <lib/bt_connect.h>
-#include <lib/kb_settings.h>
-#include <lib/usb_connect.h>
 #include <lib/ykb_protocol.h>
+
+#include <subsys/bt_connect.h>
+#include <subsys/kb_settings.h>
+#include <subsys/usb_connect.h>
 
 #include <drivers/kscan.h>
 #include <drivers/splitlink.h>
@@ -20,29 +21,66 @@
 
 LOG_MODULE_REGISTER(kb_handler_sm, CONFIG_KB_HANDLER_LOG_LEVEL);
 
-#define Z_USER_PROP(prop) DT_PROP(DT_PATH(zephyr_user), prop)
-#define Z_USER_PROP_OR(prop, val) DT_PROP_OR(DT_PATH(zephyr_user), prop, val)
+#define Z_USER_PATH DT_PATH(zephyr_user)
+#define Z_USER_PROP(prop) DT_PROP(Z_USER_PATH, prop)
+#define Z_USER_PROP_OR(prop, val) DT_PROP_OR(Z_USER_PATH, prop, val)
+#define Z_USER_HAS_PROP(prop) DT_NODE_HAS_PROP(Z_USER_PATH, prop)
 #define Z_USER_DEV(prop) DEVICE_DT_GET(Z_USER_PROP(prop))
+#define Z_USER_PROP_LEN(prop) DT_PROP_LEN(Z_USER_PATH, prop)
+#define Z_USER_PROP_LEN_OR(prop, val) DT_PROP_LEN_OR(Z_USER_PATH, prop, val)
 
 #define KSCAN_DEV_AND_COMMA(node_id, prop, idx)                                \
     DEVICE_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, idx)),
 
-static const uint16_t key_count = Z_USER_PROP(kb_handler_key_count);
-static const uint16_t key_count_slave = Z_USER_PROP(kb_handler_key_count_slave);
+#define KEY_COUNT Z_USER_PROP(kb_handler_key_count)
+#define KEY_COUNT_SLAVE Z_USER_PROP(kb_handler_key_count_slave)
 
 static const struct device *kscans[] = {DT_FOREACH_PROP_ELEM(
     DT_PATH(zephyr_user), kb_handler_kscans, KSCAN_DEV_AND_COMMA)};
 
 static const struct device *splitlink = Z_USER_DEV(kb_handler_splitlink);
 
-static const uint8_t default_keymap_layer1[] =
-    Z_USER_PROP(kb_handler_default_keymap_layer1),
-                     static const uint8_t default_keymap_layer2[] =
-                         Z_USER_PROP_OR(kb_handler_default_keymap_layer2, {0}),
-                     static const struct default_keymap_layer3[] =
-                         Z_USER_PROP_OR(kb_handler_defualt_keymap_layer3, {0}),
+static const uint8_t default_keymap_layer1[TOTAL_KEY_COUNT] =
+    Z_USER_PROP(kb_handler_default_keymap_layer1);
+static const uint8_t default_keymap_layer2[TOTAL_KEY_COUNT] =
+    Z_USER_PROP_OR(kb_handler_default_keymap_layer2, {0});
+static const uint8_t default_keymap_layer3[TOTAL_KEY_COUNT] =
+    Z_USER_PROP_OR(kb_handler_defualt_keymap_layer3, {0});
 
-                     static kb_settings_t settings_snapshot;
+static const kb_mouseemu_settings_t default_mouseemu = {
+    .enabled = Z_USER_HAS_PROP(mouseemu_enabled),
+
+    .direction_mode = Z_USER_HAS_PROP(mouseemu_8way),
+
+    .move_keys = Z_USER_PROP_OR(mouseemu_move_keys, {0}),
+    .move_keys_count = Z_USER_PROP_LEN_OR(mouseemu_move_keys, 0),
+
+    .button_keys = Z_USER_PROP_OR(mouseemu_button_keys, {0}),
+    .button_keys_count = Z_USER_PROP_OR(mouseemu_button_keys, 0),
+
+    .scroll_keys = Z_USER_PROP_OR(mouseemu_scroll_keys, {0}),
+    .scroll_keys_count = Z_USER_PROP_LEN_OR(mouseemu_scroll_keys, 0),
+
+    .move_x_k = (double)Z_USER_PROP_OR(mouseemu_move_x_k_mul, 1) /
+                Z_USER_PROP_OR(mouseemu_move_x_k_div, 1),
+    .move_y_k = (double)Z_USER_PROP_OR(mouseemu_move_y_k_mul, 1) /
+                Z_USER_PROP_OR(mouseemu_move_y_k_div, 1),
+    .scroll_k = (double)Z_USER_PROP_OR(mouseemu_scroll_k_mul, 1) /
+                Z_USER_PROP_OR(mouseemu_scroll_k_div, 1),
+
+    .move_keys_deadzones = Z_USER_PROP_OR(mouseemu_move_keys_deadzones, {0}),
+    .scroll_keys_deadzones =
+        Z_USER_PROP_OR(mouseemu_scroll_keys_deadzones, {0}),
+};
+
+static K_THREAD_STACK_DEFINE(kbh_sm_thread_stack,
+                             CONFIG_KB_HANDLER_THREAD_STACK_SIZE);
+
+static struct k_thread kbh_sm_thread;
+
+static kb_settings_t settings_snapshot;
+
+static bool thread_started;
 
 enum kbh_thread_msg_type {
     KBH_THREAD_MSG_KEY = 0U,
@@ -51,40 +89,15 @@ enum kbh_thread_msg_type {
     KBH_THREAD_MSG_SETTINGS_SYNC,
 };
 
-struct kb_handler_sm_config {
-    const struct device **kscans;
-    const struct device *splitlink;
-
-    const uint16_t key_count;
-    const uint16_t key_count_slave;
-    const uint16_t kscans_count;
-
-    const uint8_t *default_keymap_layer1;
-    const uint8_t *default_keymap_layer2;
-    const uint8_t *default_keymap_layer3;
-
-    const kb_mouseemu_settings_t default_mouseemu;
-};
-
-struct kb_handler_sm_data {
-    struct k_thread thread;
-    bool thread_started;
-    k_thread_stack_t *thread_stack;
-    struct k_msgq *thread_q;
-
-    kb_settings_t settings_snapshot;
-};
-
-#define DATA_FLAG_KEYS 1U
-#define DATA_FLAG_VALUES 2U
-#define DATA_FLAG_BACKLIGHT 3U
-
 struct kbh_thread_msg {
     enum kbh_thread_msg_type type;
     uint16_t key;
     bool status;
     uint16_t value;
 };
+
+K_MSGQ_DEFINE(kbh_sm_msgq, sizeof(struct kbh_thread_msg),
+              CONFIG_KB_HANDLER_MSGQ_SIZE, 4);
 
 static void send_kb_report(hid_kb_report_t *report) {
     if (IS_ENABLED(CONFIG_LIB_USB_CONNECT)) {
@@ -373,19 +386,15 @@ static void mouseemu_value_handler(kb_settings_t *settings,
     }
 }
 
-static void kb_handler_thread(void *device, void *_, void *__) {
+static void kb_handler_thread(void *a, void *b, void *c) {
     struct kbh_thread_msg msg;
-    const struct device *dev = device;
-    const struct kb_handler_sm_config *cfg = dev->config;
-    struct kb_handler_sm_data *data = dev->data;
-    kb_settings_t *settings_snapshot = &data->settings_snapshot;
-    uint16_t total_key_count = cfg->key_count + cfg->key_count_slave;
+    kb_settings_t *set_snap = &settings_snapshot;
     bool second_layer_active = false;
     bool third_layer_active = false;
-    bool pressed_keys[total_key_count];
-    uint16_t current_values[total_key_count];
-    uint16_t layer1_keys[total_key_count];
-    uint16_t layer2_keys[total_key_count];
+    bool pressed_keys[TOTAL_KEY_COUNT];
+    uint16_t current_values[TOTAL_KEY_COUNT];
+    uint16_t layer1_keys[TOTAL_KEY_COUNT];
+    uint16_t layer2_keys[TOTAL_KEY_COUNT];
     uint8_t layer1_keys_count = 0;
     uint8_t layer2_keys_count = 0;
 
@@ -394,12 +403,12 @@ static void kb_handler_thread(void *device, void *_, void *__) {
     hid_mouse_report_t mouse_report = {};
     hid_mouse_report_t prev_mouse_report = {};
 
-    kb_mode_t active_mode = settings_snapshot->mode;
+    kb_mode_t active_mode = set_snap->mode;
 
-    build_layer_keys(settings_snapshot, total_key_count, layer1_keys,
-                     &layer1_keys_count, layer2_keys, &layer2_keys_count);
+    build_layer_keys(set_snap, TOTAL_KEY_COUNT, layer1_keys, &layer1_keys_count,
+                     layer2_keys, &layer2_keys_count);
 
-    reset_handler_state(pressed_keys, current_values, total_key_count,
+    reset_handler_state(pressed_keys, current_values, TOTAL_KEY_COUNT,
                         &second_layer_active, &third_layer_active, &kb_report,
                         &mouse_report);
 
@@ -407,7 +416,7 @@ static void kb_handler_thread(void *device, void *_, void *__) {
     prev_mouse_report = mouse_report;
 
     while (true) {
-        int err = k_msgq_get(data->thread_q, &msg, K_FOREVER);
+        int err = k_msgq_get(&kbh_sm_msgq, &msg, K_FOREVER);
 
         if (err) {
             LOG_ERR("k_msgq_get: %d", err);
@@ -416,12 +425,12 @@ static void kb_handler_thread(void *device, void *_, void *__) {
 
         switch (msg.type) {
         case KBH_THREAD_MSG_SETTINGS_SYNC:
-            active_mode = settings_snapshot->mode;
-            build_layer_keys(settings_snapshot, total_key_count, layer1_keys,
+            active_mode = set_snap->mode;
+            build_layer_keys(set_snap, TOTAL_KEY_COUNT, layer1_keys,
                              &layer1_keys_count, layer2_keys,
                              &layer2_keys_count);
 
-            reset_handler_state(pressed_keys, current_values, total_key_count,
+            reset_handler_state(pressed_keys, current_values, TOTAL_KEY_COUNT,
                                 &second_layer_active, &third_layer_active,
                                 &kb_report, &mouse_report);
 
@@ -430,13 +439,12 @@ static void kb_handler_thread(void *device, void *_, void *__) {
             continue;
 
         case KBH_THREAD_MSG_SLAVE_KEYS_RESET:
-            memset(&pressed_keys[cfg->key_count], 0,
-                   cfg->key_count_slave * sizeof(bool));
-            memset(&current_values[cfg->key_count], 0,
-                   cfg->key_count_slave * sizeof(uint16_t));
+            memset(&pressed_keys[KEY_COUNT], 0, KEY_COUNT_SLAVE * sizeof(bool));
+            memset(&current_values[KEY_COUNT], 0,
+                   KEY_COUNT_SLAVE * sizeof(uint16_t));
 
-            mouseemu_value_handler(settings_snapshot, current_values,
-                                   pressed_keys, &mouse_report);
+            mouseemu_value_handler(set_snap, current_values, pressed_keys,
+                                   &mouse_report);
 
             if (!mouse_reports_equal(&mouse_report, &prev_mouse_report)) {
                 send_mouse_report(&mouse_report);
@@ -448,7 +456,7 @@ static void kb_handler_thread(void *device, void *_, void *__) {
             continue;
 
         case KBH_THREAD_MSG_KEY:
-            if (msg.key >= total_key_count) {
+            if (msg.key >= TOTAL_KEY_COUNT) {
                 LOG_WRN("Ignoring out-of-range key %u", msg.key);
                 continue;
             }
@@ -461,9 +469,8 @@ static void kb_handler_thread(void *device, void *_, void *__) {
 
             if (active_mode == KB_MODE_NORMAL ||
                 active_mode == KB_MODE_MOUSESIM) {
-                uint8_t resolved_hid =
-                    resolve_hid(settings_snapshot, msg.key, second_layer_active,
-                                third_layer_active);
+                uint8_t resolved_hid = resolve_hid(
+                    set_snap, msg.key, second_layer_active, third_layer_active);
 
                 LOG_DBG("Key %s idx %u", msg.status ? "pressed" : "released",
                         msg.key);
@@ -491,8 +498,8 @@ static void kb_handler_thread(void *device, void *_, void *__) {
                 }
 
             handle_kb_report:
-                build_kb_report(&kb_report, settings_snapshot, pressed_keys,
-                                total_key_count, second_layer_active,
+                build_kb_report(&kb_report, set_snap, pressed_keys,
+                                TOTAL_KEY_COUNT, second_layer_active,
                                 third_layer_active);
 
                 if (!kb_reports_equal(&kb_report, &prev_kb_report)) {
@@ -503,8 +510,8 @@ static void kb_handler_thread(void *device, void *_, void *__) {
             }
 
             if (active_mode == KB_MODE_MOUSESIM) {
-                mouseemu_value_handler(settings_snapshot, current_values,
-                                       pressed_keys, &mouse_report);
+                mouseemu_value_handler(set_snap, current_values, pressed_keys,
+                                       &mouse_report);
 
                 if (!mouse_reports_equal(&mouse_report, &prev_mouse_report)) {
                     send_mouse_report(&mouse_report);
@@ -517,7 +524,7 @@ static void kb_handler_thread(void *device, void *_, void *__) {
             continue;
 
         case KBH_THREAD_MSG_VALUE:
-            if (msg.key >= total_key_count) {
+            if (msg.key >= TOTAL_KEY_COUNT) {
                 LOG_WRN("Ignoring out-of-range value key %u", msg.key);
                 continue;
             }
@@ -525,8 +532,8 @@ static void kb_handler_thread(void *device, void *_, void *__) {
             current_values[msg.key] = msg.value;
 
             if (active_mode == KB_MODE_MOUSESIM) {
-                mouseemu_value_handler(settings_snapshot, current_values,
-                                       pressed_keys, &mouse_report);
+                mouseemu_value_handler(set_snap, current_values, pressed_keys,
+                                       &mouse_report);
 
                 if (!mouse_reports_equal(&mouse_report, &prev_mouse_report)) {
                     send_mouse_report(&mouse_report);
@@ -541,14 +548,14 @@ static void kb_handler_thread(void *device, void *_, void *__) {
                 // for now.
                 double max_percentage = 0;
                 int32_t max_index = -1;
-                bool pressed_race[total_key_count];
+                bool pressed_race[TOTAL_KEY_COUNT];
                 memset(pressed_race, 0, sizeof(pressed_race));
-                for (uint16_t i = 0; i < total_key_count; ++i) {
+                for (uint16_t i = 0; i < TOTAL_KEY_COUNT; ++i) {
                     if (pressed_keys[i]) {
-                        uint16_t threshold = settings_snapshot->thresholds[i];
+                        uint16_t threshold = set_snap->thresholds[i];
                         double percentage_pressed =
                             (double)(current_values[i] - threshold) /
-                            (settings_snapshot->maximums[i] - threshold);
+                            (set_snap->maximums[i] - threshold);
                         if (percentage_pressed > max_percentage) {
                             max_percentage = percentage_pressed;
                             max_index = i;
@@ -560,8 +567,8 @@ static void kb_handler_thread(void *device, void *_, void *__) {
                     pressed_race[max_index] = true;
                 }
 
-                build_kb_report(&kb_report, settings_snapshot, pressed_race,
-                                total_key_count, second_layer_active,
+                build_kb_report(&kb_report, set_snap, pressed_race,
+                                TOTAL_KEY_COUNT, second_layer_active,
                                 third_layer_active);
 
                 if (!kb_reports_equal(&kb_report, &prev_kb_report)) {
@@ -578,28 +585,25 @@ static void kb_handler_thread(void *device, void *_, void *__) {
     }
 }
 
-static inline void
-kb_handler_sm_key_handler(struct kb_handler_sm_data *dev_data,
-                          uint16_t key_index, bool status) {
+static inline void kb_handler_sm_key_handler(uint16_t key_index, bool status) {
     struct kbh_thread_msg data = {
         .type = KBH_THREAD_MSG_KEY,
         .key = key_index,
         .status = status,
     };
 
-    k_msgq_put(dev_data->thread_q, &data, K_NO_WAIT);
+    k_msgq_put(&kbh_sm_msgq, &data, K_NO_WAIT);
 }
 
-static inline void
-kb_handler_sm_value_handler(struct kb_handler_sm_data *dev_data,
-                            uint16_t key_index, uint16_t value) {
+static inline void kb_handler_sm_value_handler(uint16_t key_index,
+                                               uint16_t value) {
     struct kbh_thread_msg data = {
         .type = KBH_THREAD_MSG_VALUE,
         .key = key_index,
         .value = value,
     };
 
-    k_msgq_put(dev_data->thread_q, &data, K_NO_WAIT);
+    k_msgq_put(&kbh_sm_msgq, &data, K_NO_WAIT);
 }
 
 void splitlink_handler_values_received(uint16_t *values, uint16_t count) {
@@ -609,7 +613,7 @@ void splitlink_handler_values_received(uint16_t *values, uint16_t count) {
             .key = i,
             .value = values[i],
         };
-        k_msgq_put(dev_data->thread_q, &data, K_NO_WAIT);
+        k_msgq_put(&kbh_sm_msgq, &data, K_NO_WAIT);
     }
 }
 
@@ -639,13 +643,13 @@ kb_handler_sm_splitlink_on_disconnect(const struct device *dev,
     }
 }
 
-static void kscans_check(const struct kb_handler_sm_config *cfg) {
+static void kscans_check() {
     int expected_offset = 0;
     int total_key_count = 0;
 
-    for (uint16_t i = 0; i < cfg->kscans_count; ++i) {
-        int offset = kscan_get_idx_offset(cfg->kscans[i]);
-        int key_amount = kscan_get_key_amount(cfg->kscans[i]);
+    for (uint16_t i = 0; i < ARRAY_SIZE(kscans); ++i) {
+        int offset = kscan_get_idx_offset(kscans[i]);
+        int key_amount = kscan_get_key_amount(kscans[i]);
 
         if (offset < 0) {
             LOG_ERR("Unable to get idx offset for KScan %u (err %d)", i,
@@ -678,9 +682,9 @@ static void kscans_check(const struct kb_handler_sm_config *cfg) {
         expected_offset = offset + key_amount;
     }
 
-    if (total_key_count != cfg->key_count) {
+    if (total_key_count != TOTAL_KEY_COUNT) {
         LOG_ERR("KScans total key count != DTS key count (%d != %u)",
-                total_key_count, cfg->key_count);
+                total_key_count, TOTAL_KEY_COUNT);
         k_panic();
     }
 }
@@ -753,31 +757,23 @@ static void mouseemu_check(uint16_t total_key_count,
                                "button");
 }
 
-static inline void kb_handler_sm_on_settings_update(kb_settings_t *settings,
-                                                    const struct device *dev) {
-    const struct kb_handler_sm_config *cfg = dev->config;
-    struct kb_handler_sm_data *data = dev->data;
-    struct kbh_thread_msg msg = {
-        .type = KBH_THREAD_MSG_SETTINGS_SYNC,
-    };
-
-    if (data->thread_started) {
-        k_thread_suspend(&data->thread);
-        k_msgq_purge(data->thread_q);
+static inline void kb_handler_sm_on_settings_update(kb_settings_t *settings) {
+    if (thread_started) {
+        k_thread_suspend(&kbh_sm_thread);
+        k_msgq_purge(&kbh_sm_msgq);
     }
 
-    memcpy(&data->settings_snapshot, settings, sizeof(kb_settings_t));
-    // mouseemu_check(cfg->key_count + cfg->key_count_slave,
-    //                &data->settings_snapshot.mouseemu);
+    memcpy(&settings_snapshot, settings, sizeof(kb_settings_t));
+    mouseemu_check(TOTAL_KEY_COUNT, &settings_snapshot.mouseemu);
 
-    for (size_t i = 0; i < cfg->kscans_count; ++i) {
-        const struct device *kscan = cfg->kscans[i];
+    for (size_t i = 0; i < ARRAY_SIZE(kscans); ++i) {
+        const struct device *kscan = kscans[i];
         int idx_offset = kscan_get_idx_offset(kscan);
 
         if (idx_offset < 0) {
             LOG_ERR("Unable to get idx offset for KScan instance %s "
                     "(err %d)",
-                    dev->name, idx_offset);
+                    kscan->name, idx_offset);
             continue;
         }
 
@@ -786,65 +782,58 @@ static inline void kb_handler_sm_on_settings_update(kb_settings_t *settings,
         if (err) {
             LOG_ERR("Unable to set thresholds for KScan instance %s "
                     "(err %d)",
-                    dev->name, err);
+                    kscan->name, err);
             continue;
         }
     }
 
-    if (data->thread_started) {
-        k_thread_resume(&data->thread);
+    if (thread_started) {
+        k_thread_resume(&kbh_sm_thread);
     } else {
-        k_thread_create(&data->thread, data->thread_stack,
+        k_thread_create(&kbh_sm_thread, kbh_sm_thread_stack,
                         CONFIG_KB_HANDLER_THREAD_STACK_SIZE, kb_handler_thread,
-                        (void *)dev, NULL, NULL,
-                        CONFIG_KB_HANDLER_THREAD_PRIORITY, 0, K_NO_WAIT);
-        k_thread_name_set(&data->thread, "kb_handler_sm");
-        data->thread_started = true;
+                        NULL, NULL, NULL, CONFIG_KB_HANDLER_THREAD_PRIORITY, 0,
+                        K_NO_WAIT);
+        k_thread_name_set(&kbh_sm_thread, "kb_handler_sm");
+        thread_started = true;
     }
 
-    int err = k_msgq_put(data->thread_q, &msg, K_NO_WAIT);
+    struct kbh_thread_msg msg = {
+        .type = KBH_THREAD_MSG_SETTINGS_SYNC,
+    };
+    int err = k_msgq_put(&kbh_sm_msgq, &msg, K_NO_WAIT);
     if (err) {
         LOG_WRN("Event settings sync skipped (err %d)", err);
     }
 }
 
-static int kb_handler_sm_init(const struct device *dev) {
-    const struct kb_handler_sm_config *cfg = dev->config;
-    struct kb_handler_sm_data *data = dev->data;
+static int kb_handler_sm_init(void) {
+    thread_started = false;
 
-    data->thread_started = false;
-
-    if (!device_is_ready(cfg->splitlink)) {
-        LOG_ERR("Splitlink device '%s' is not ready", cfg->splitlink->name);
-        return -ENODEV;
+    if (!device_is_ready(splitlink)) {
+        LOG_ERR("Splitlink device '%s' is not ready", splitlink->name);
+        return -1;
     }
 
-    for (uint16_t i = 0; i < cfg->kscans_count; ++i) {
-        if (!device_is_ready(cfg->kscans[i])) {
-            LOG_ERR("KScan device '%s' is not ready", cfg->kscans[i]->name);
-            return -ENODEV;
+    for (uint16_t i = 0; i < ARRAY_SIZE(kscans); ++i) {
+        if (!device_is_ready(kscans[i])) {
+            LOG_ERR("KScan device '%s' is not ready", kscans[i]->name);
+            return -1;
         }
     }
 
-    kscans_check(cfg);
-    // mouseemu_check(cfg->key_count + cfg->key_count_slave,
-    //                &cfg->default_mouseemu);
+    kscans_check();
+    mouseemu_check(TOTAL_KEY_COUNT, &default_mouseemu);
 
     return 0;
 }
 
-static int get_default_thresholds(const struct device *dev, uint16_t *buffer) {
-    const struct kb_handler_sm_config *cfg;
+SYS_INIT(kb_handler_sm_init, POST_KERNEL, CONFIG_KB_HANDLER_INIT_PRIORITY);
 
-    if (!dev) {
-        return -EINVAL;
-    }
-
-    cfg = dev->config;
-
+int kb_handler_get_default_thresholds(uint16_t *buffer) {
     if (buffer) {
-        for (size_t i = 0; i < cfg->kscans_count; ++i) {
-            const struct device *kscan = cfg->kscans[i];
+        for (size_t i = 0; i < ARRAY_SIZE(kscans); ++i) {
+            const struct device *kscan = kscans[i];
             int key_amount = kscan_get_key_amount(kscan);
             int idx_offset = kscan_get_idx_offset(kscan);
             int res;
@@ -866,202 +855,37 @@ static int get_default_thresholds(const struct device *dev, uint16_t *buffer) {
     return 0;
 }
 
-static int get_default_keymap_layer1(const struct device *dev,
-                                     uint8_t *buffer) {
-    const struct kb_handler_sm_config *cfg;
-
-    if (!dev) {
-        return -EINVAL;
-    }
-
-    cfg = dev->config;
-
+int kb_handler_get_default_keymap_layer1(uint8_t *buffer) {
     if (buffer) {
-        memcpy(buffer, cfg->default_keymap_layer1,
-               (cfg->key_count + cfg->key_count_slave) * sizeof(uint8_t));
+        memcpy(buffer, default_keymap_layer1,
+               TOTAL_KEY_COUNT * sizeof(uint8_t));
     }
 
     return 0;
 }
 
-static int get_default_keymap_layer2(const struct device *dev,
-                                     uint8_t *buffer) {
-    const struct kb_handler_sm_config *cfg;
-
-    if (!dev) {
-        return -EINVAL;
-    }
-
-    cfg = dev->config;
-
+int kb_handler_get_default_keymap_layer2(uint8_t *buffer) {
     if (buffer) {
-        memcpy(buffer, cfg->default_keymap_layer2,
-               (cfg->key_count + cfg->key_count_slave) * sizeof(uint8_t));
+        memcpy(buffer, default_keymap_layer2,
+               TOTAL_KEY_COUNT * sizeof(uint8_t));
     }
 
     return 0;
 }
 
-static int get_default_keymap_layer3(const struct device *dev,
-                                     uint8_t *buffer) {
-    const struct kb_handler_sm_config *cfg;
-
-    if (!dev) {
-        return -EINVAL;
-    }
-
-    cfg = dev->config;
-
+int kb_handler_get_default_keymap_layer3(uint8_t *buffer) {
     if (buffer) {
-        memcpy(buffer, cfg->default_keymap_layer3,
-               (cfg->key_count + cfg->key_count_slave) * sizeof(uint8_t));
+        memcpy(buffer, default_keymap_layer3,
+               TOTAL_KEY_COUNT * sizeof(uint8_t));
     }
 
     return 0;
 }
 
-static int get_default_mouseemu(const struct device *dev,
-                                kb_mouseemu_settings_t *buffer) {
-    const struct kb_handler_sm_config *cfg;
-
-    if (!dev) {
-        return -EINVAL;
-    }
-
-    cfg = dev->config;
-
+int kb_handler_get_default_mouseemu(kb_mouseemu_settings_t *buffer) {
     if (buffer) {
-        memcpy(buffer, &cfg->default_mouseemu, sizeof(*buffer));
+        memcpy(buffer, &default_mouseemu, sizeof(kb_mouseemu_settings_t));
     }
 
     return 0;
 }
-
-#define TOTAL_KB_KEY_COUNT(inst)                                               \
-    (DT_INST_PROP(inst, key_count) + DT_INST_PROP(inst, key_count_slave))
-
-#define KB_HANDLER_SM_DEFINE(inst)                                             \
-    static const struct device *__kb_handler_sm_kscans__##inst[] = {           \
-        DT_INST_FOREACH_PROP_ELEM(inst, kscans, KSCAN_DEV_AND_COMMA)};         \
-                                                                               \
-    static const uint8_t                                                       \
-        __kb_handler_sm_default_keymap_layer1__##inst[TOTAL_KB_KEY_COUNT(      \
-            inst)] = DT_INST_PROP(inst, default_keymap_layer1);                \
-    static const uint8_t                                                       \
-        __kb_handler_sm_default_keymap_layer2__##inst[TOTAL_KB_KEY_COUNT(      \
-            inst)] =                                                           \
-            DT_INST_PROP_OR(inst, default_keymap_layer2, {KEY_NOKEY});         \
-    static const uint8_t                                                       \
-        __kb_handler_sm_default_keymap_layer3__##inst[TOTAL_KB_KEY_COUNT(      \
-            inst)] =                                                           \
-            DT_INST_PROP_OR(inst, default_keymap_layer3, {KEY_NOKEY});         \
-                                                                               \
-    static const struct kb_handler_sm_config __kb_handler_sm_config__##inst =  \
-        {                                                                      \
-            .key_count = DT_INST_PROP(inst, key_count),                        \
-            .key_count_slave = DT_INST_PROP(inst, key_count_slave),            \
-            .kscans = __kb_handler_sm_kscans__##inst,                          \
-            .kscans_count = DT_INST_PROP_LEN(inst, kscans),                    \
-            .splitlink = DEVICE_DT_GET(DT_INST_PHANDLE(inst, splitlink)),      \
-            .default_keymap_layer1 =                                           \
-                __kb_handler_sm_default_keymap_layer1__##inst,                 \
-            .default_keymap_layer2 =                                           \
-                __kb_handler_sm_default_keymap_layer2__##inst,                 \
-            .default_keymap_layer3 =                                           \
-                __kb_handler_sm_default_keymap_layer3__##inst,                 \
-            .default_mouseemu =                                                \
-                {                                                              \
-                    .enabled = DT_INST_NODE_HAS_PROP(inst, mouseemu_enabled),  \
-                    .direction_mode =                                          \
-                        DT_INST_ENUM_IDX_OR(inst, mouseemu_direction_mode,     \
-                                            KB_MOUSEEMU_DIRECTION_4_WAY),      \
-                    .move_keys_count =                                         \
-                        DT_INST_PROP_LEN_OR(inst, mouseemu_move_keys, 0),      \
-                    .scroll_keys_count =                                       \
-                        DT_INST_PROP_LEN_OR(inst, mouseemu_scroll_keys, 0),    \
-                    .button_keys_count =                                       \
-                        DT_INST_PROP_LEN_OR(inst, mouseemu_button_keys, 0),    \
-                    .move_keys =                                               \
-                        DT_INST_PROP_OR(inst, mouseemu_move_keys, {0}),        \
-                    .scroll_keys =                                             \
-                        DT_INST_PROP_OR(inst, mouseemu_scroll_keys, {0}),      \
-                    .button_keys =                                             \
-                        DT_INST_PROP_OR(inst, mouseemu_button_keys, {0}),      \
-                    .move_x_k =                                                \
-                        (double)DT_INST_PROP_OR(inst, mouseemu_move_x_k_mul,   \
-                                                1) /                           \
-                        DT_INST_PROP_OR(inst, mouseemu_move_x_k_div, 1),       \
-                    .move_y_k =                                                \
-                        (double)DT_INST_PROP_OR(inst, mouseemu_move_y_k_mul,   \
-                                                1) /                           \
-                        DT_INST_PROP_OR(inst, mouseemu_move_y_k_div, 1),       \
-                    .scroll_k =                                                \
-                        (double)DT_INST_PROP_OR(inst, mouseemu_scroll_k_mul,   \
-                                                1) /                           \
-                        DT_INST_PROP_OR(inst, mouseemu_scroll_k_div, 1),       \
-                    .move_keys_deadzones = DT_INST_PROP_OR(                    \
-                        inst, mouseemu_move_keys_deadzones, {0}),              \
-                    .scroll_keys_deadzones = DT_INST_PROP_OR(                  \
-                        inst, mouseemu_scroll_keys_deadzones, {0}),            \
-                },                                                             \
-    };                                                                         \
-    BUILD_ASSERT(                                                              \
-        DT_INST_PROP_LEN_OR(inst, mouseemu_move_keys, 0) ==                    \
-            DT_INST_PROP_LEN_OR(inst, mouseemu_move_keys_deadzones, 0),        \
-        "Move keys deadzones should be the same length as move keys and map "  \
-        "1:1");                                                                \
-    BUILD_ASSERT(                                                              \
-        DT_INST_PROP_LEN_OR(inst, mouseemu_scroll_keys, 0) ==                  \
-            DT_INST_PROP_LEN_OR(inst, mouseemu_scroll_keys_deadzones, 0),      \
-        "Scroll keys deadzones should be the same length as scroll keys and "  \
-        "map 1:1");                                                            \
-                                                                               \
-    static struct kb_handler_sm_data __kb_handler_sm_data__##inst = {          \
-        .thread_q = &__kb_handler_sm_thread_queue__##inst,                     \
-        .thread_stack = __kb_handler_sm_thread_stack__##inst,                  \
-    };                                                                         \
-                                                                               \
-    static void kb_handler_sm_key_event_handler__##inst(uint16_t key_index,    \
-                                                        bool pressed) {        \
-        kb_handler_sm_key_handler(&__kb_handler_sm_data__##inst, key_index,    \
-                                  pressed);                                    \
-    }                                                                          \
-                                                                               \
-    static void kb_handler_sm_key_value_handler__##inst(uint16_t key_index,    \
-                                                        uint16_t value) {      \
-        kb_handler_sm_value_handler(&__kb_handler_sm_data__##inst, key_index,  \
-                                    value);                                    \
-    }                                                                          \
-    KSCAN_CB_DEFINE(kb_handler_sm__##inst) = {                                 \
-        .on_event = kb_handler_sm_key_event_handler__##inst,                   \
-        .on_new_value = kb_handler_sm_key_value_handler__##inst,               \
-    };                                                                         \
-                                                                               \
-    static void kb_handler_sm_splitlink_on_connect__##inst(                    \
-        const struct device *dev) {                                            \
-        kb_handler_sm_splitlink_on_connect(                                    \
-            dev, &__kb_handler_sm_thread_queue__##inst);                       \
-    }                                                                          \
-    static void kb_handler_sm_splitlink_on_disconnect__##inst(                 \
-        const struct device *dev) {                                            \
-        kb_handler_sm_splitlink_on_disconnect(                                 \
-            dev, &__kb_handler_sm_thread_queue__##inst);                       \
-    }                                                                          \
-    SPLITLINK_CB_DEFINE(kb_handler_sm) = {                                     \
-        .connect_cb = kb_handler_sm_splitlink_on_connect__##inst,              \
-        .disconnect_cb = kb_handler_sm_splitlink_on_disconnect__##inst,        \
-    };                                                                         \
-                                                                               \
-    DEVICE_DT_INST_DEFINE(                                                     \
-        inst, kb_handler_sm_init, NULL, &__kb_handler_sm_data__##inst,         \
-        &__kb_handler_sm_config__##inst, POST_KERNEL,                          \
-        CONFIG_KB_HANDLER_INIT_PRIORITY, &kb_handler_sm_api);                  \
-                                                                               \
-    void kb_handler_sm_on_settings_update__##inst(kb_settings_t *settings) {   \
-        kb_handler_sm_on_settings_update(settings, DEVICE_DT_INST_GET(inst));  \
-    }                                                                          \
-                                                                               \
-    ON_SETTINGS_UPDATE_DEFINE(kb_handler_settings_update,                      \
-                              kb_handler_sm_on_settings_update__##inst);
-
-DT_INST_FOREACH_STATUS_OKAY(KB_HANDLER_SM_DEFINE)

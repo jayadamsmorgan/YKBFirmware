@@ -1,6 +1,5 @@
 menuconfig SPLITLINK
     bool "Enable Splitlink"
-    default y
 
 if SPLITLINK
 
