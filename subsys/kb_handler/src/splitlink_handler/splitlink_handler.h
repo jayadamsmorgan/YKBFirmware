@@ -1,10 +1,16 @@
 #ifndef SPLITLINK_HANDLER_H
 #define SPLITLINK_HANDLER_H
 
-#include <lib/kb_settings.h>
+#include <subsys/kb_settings.h>
 
 #include <stddef.h>
 #include <stdint.h>
+
+int splitlink_handler_init();
+
+void splitlink_handler_on_connect();
+
+void splitlink_handler_on_disconnect();
 
 void splitlink_handler_values_received(uint16_t *values, uint16_t count);
 

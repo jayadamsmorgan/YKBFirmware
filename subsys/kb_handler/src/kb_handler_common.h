@@ -1,169 +1,115 @@
 #ifndef KB_HANDLER_COMMON_H
 #define KB_HANDLER_COMMON_H
 
-#include <lib/kb_settings.h>
-#include <lib/usb_connect.h>
+#include <subsys/kb_handler.h>
 
-#include <dt-bindings/kb-handler/kb-key-codes.h>
+#include <subsys/kb_settings.h>
+#include <subsys/zephyr_user_helpers.h>
 
-#include <zephyr/sys/util_macro.h>
+#include <drivers/kscan.h>
 
-#include <stdbool.h>
-#include <stdint.h>
 #include <string.h>
 
-enum kbh_thread_msg_type {
-    KBH_THREAD_MSG_KEY = 0U,
-    KBH_THREAD_MSG_VALUE,
-    KBH_THREAD_MSG_SLAVE_KEYS_RESET,
-    KBH_THREAD_MSG_SETTINGS_SYNC,
+#define KSCAN_DEV_AND_COMMA(node_id, prop, idx)                                \
+    DEVICE_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, idx)),
+
+#define KEY_COUNT Z_USER_PROP(kb_handler_key_count)
+#define KEY_COUNT_SLAVE Z_USER_PROP(kb_handler_key_count_slave)
+
+static const struct device *kscans[] = {DT_FOREACH_PROP_ELEM(
+    DT_PATH(zephyr_user), kb_handler_kscans, KSCAN_DEV_AND_COMMA)};
+
+static const uint8_t default_keymap_layer1[TOTAL_KEY_COUNT] =
+    Z_USER_PROP(kb_handler_default_keymap_layer1);
+static const uint8_t default_keymap_layer2[TOTAL_KEY_COUNT] =
+    Z_USER_PROP_OR(kb_handler_default_keymap_layer2, {0});
+static const uint8_t default_keymap_layer3[TOTAL_KEY_COUNT] =
+    Z_USER_PROP_OR(kb_handler_defualt_keymap_layer3, {0});
+
+static const kb_mouseemu_settings_t default_mouseemu = {
+    .enabled = Z_USER_HAS_PROP(mouseemu_enabled),
+
+    .direction_mode = Z_USER_HAS_PROP(mouseemu_8way),
+
+    .move_keys = Z_USER_PROP_OR(mouseemu_move_keys, {0}),
+    .move_keys_count = Z_USER_PROP_LEN_OR(mouseemu_move_keys, 0),
+
+    .button_keys = Z_USER_PROP_OR(mouseemu_button_keys, {0}),
+    .button_keys_count = Z_USER_PROP_OR(mouseemu_button_keys, 0),
+
+    .scroll_keys = Z_USER_PROP_OR(mouseemu_scroll_keys, {0}),
+    .scroll_keys_count = Z_USER_PROP_LEN_OR(mouseemu_scroll_keys, 0),
+
+    .move_x_k = (double)Z_USER_PROP_OR(mouseemu_move_x_k_mul, 1) /
+                Z_USER_PROP_OR(mouseemu_move_x_k_div, 1),
+    .move_y_k = (double)Z_USER_PROP_OR(mouseemu_move_y_k_mul, 1) /
+                Z_USER_PROP_OR(mouseemu_move_y_k_div, 1),
+    .scroll_k = (double)Z_USER_PROP_OR(mouseemu_scroll_k_mul, 1) /
+                Z_USER_PROP_OR(mouseemu_scroll_k_div, 1),
+
+    .move_keys_deadzones = Z_USER_PROP_OR(mouseemu_move_keys_deadzones, {0}),
+    .scroll_keys_deadzones =
+        Z_USER_PROP_OR(mouseemu_scroll_keys_deadzones, {0}),
 };
 
-struct kbh_thread_msg {
-    enum kbh_thread_msg_type type;
-    uint16_t key;
-    bool status;
-    uint16_t value;
-};
-
-static inline void send_report(uint8_t report[8]) {
-    usb_connect_send_report(report);
-}
-
-static inline bool is_modifier(uint8_t hid) {
-    return (hid >= KEY_LEFTCONTROL && hid <= KEY_RIGHTGUI);
-}
-
-static inline uint8_t mod_bit(uint8_t hid) {
-    return 1U << (hid - KEY_LEFTCONTROL);
-}
-
-static inline uint8_t resolve_hid(const kb_settings_t *settings, uint16_t key,
-                                  bool second_layer_active,
-                                  bool third_layer_active) {
-    if (third_layer_active) {
-        return settings->mappings_layer3[key];
-    }
-    if (second_layer_active) {
-        return settings->mappings_layer2[key];
+int kb_handler_get_default_keymap_layer1(uint8_t *buffer) {
+    if (buffer) {
+        memcpy(buffer, default_keymap_layer1,
+               TOTAL_KEY_COUNT * sizeof(uint8_t));
     }
 
-    return settings->mappings_layer1[key];
+    return 0;
 }
 
-static inline bool add_key(uint8_t keys[6], uint8_t hid) {
-    for (int i = 0; i < 6; ++i) {
-        if (keys[i] == hid) {
-            return true;
-        }
-    }
-    for (int i = 0; i < 6; ++i) {
-        if (keys[i] == 0) {
-            keys[i] = hid;
-            return true;
-        }
+int kb_handler_get_default_keymap_layer2(uint8_t *buffer) {
+    if (buffer) {
+        memcpy(buffer, default_keymap_layer2,
+               TOTAL_KEY_COUNT * sizeof(uint8_t));
     }
 
-    return false;
+    return 0;
 }
 
-static inline void
-build_layer_keys(const kb_settings_t *settings, uint16_t total_key_count,
-                 uint16_t *layer1_keys, uint8_t *layer1_keys_count,
-                 uint16_t *layer2_keys, uint8_t *layer2_keys_count) {
-    *layer1_keys_count = 0;
-    *layer2_keys_count = 0;
-
-    memset(layer1_keys, 0, total_key_count * sizeof(uint16_t));
-    memset(layer2_keys, 0, total_key_count * sizeof(uint16_t));
-
-    for (uint16_t i = 0; i < total_key_count; ++i) {
-        if (settings->mappings_layer1[i] == KEY_LAYER1) {
-            layer1_keys[*layer1_keys_count] = i;
-            (*layer1_keys_count)++;
-        }
-        if (settings->mappings_layer1[i] == KEY_LAYER2) {
-            layer2_keys[*layer2_keys_count] = i;
-            (*layer2_keys_count)++;
-        }
+int kb_handler_get_default_keymap_layer3(uint8_t *buffer) {
+    if (buffer) {
+        memcpy(buffer, default_keymap_layer3,
+               TOTAL_KEY_COUNT * sizeof(uint8_t));
     }
+
+    return 0;
 }
 
-static inline bool handle_layer_key(const struct kbh_thread_msg *msg,
-                                    const bool *pressed_keys,
-                                    bool *layer_active,
-                                    const uint16_t *layer_keys,
-                                    uint8_t layer_key_count) {
-    if (!msg->status) {
-        bool other_layer_pressed = false;
+int kb_handler_get_default_mouseemu(kb_mouseemu_settings_t *buffer) {
+    if (buffer) {
+        memcpy(buffer, &default_mouseemu, sizeof(kb_mouseemu_settings_t));
+    }
 
-        for (uint8_t i = 0; i < layer_key_count; ++i) {
-            uint16_t layer_key = layer_keys[i];
+    return 0;
+}
 
-            if (layer_key == msg->key) {
-                continue;
+int kb_handler_get_default_thresholds(uint16_t *buffer) {
+    if (buffer) {
+        for (size_t i = 0; i < ARRAY_SIZE(kscans); ++i) {
+            const struct device *kscan = kscans[i];
+            int key_amount = kscan_get_key_amount(kscan);
+            int idx_offset = kscan_get_idx_offset(kscan);
+            int res;
+
+            if (key_amount < 0) {
+                return key_amount;
             }
-            if (pressed_keys[layer_key]) {
-                other_layer_pressed = true;
-                break;
+            if (idx_offset < 0) {
+                return idx_offset;
+            }
+
+            res = kscan_get_default_thresholds(kscan, &buffer[idx_offset]);
+            if (res < 0) {
+                return res;
             }
         }
-
-        if (other_layer_pressed) {
-            return false;
-        }
     }
 
-    *layer_active = msg->status;
-
-    return true;
-}
-
-static inline void
-build_report(uint8_t report[8], const bool *pressed_keys,
-             uint16_t total_key_count, bool second_layer_active,
-             bool third_layer_active, const uint8_t *keymap_l1,
-             const uint8_t *keymap_l2, const uint8_t *keymap_l3) {
-    memset(report, 0, 8);
-
-    uint8_t *mods = &report[0];
-    uint8_t *keys = &report[2];
-    bool overflow = false;
-
-    for (uint16_t i = 0; i < total_key_count; ++i) {
-        uint8_t hid;
-
-        if (!pressed_keys[i]) {
-            continue;
-        }
-
-        hid = third_layer_active    ? keymap_l3[i]
-              : second_layer_active ? keymap_l2[i]
-                                    : keymap_l1[i];
-
-        if (hid == KEY_LAYER1 || hid == KEY_LAYER2 || hid == KEY_FN ||
-            hid == KEY_NOKEY) {
-            continue;
-        }
-
-        if (is_modifier(hid)) {
-            *mods |= mod_bit(hid);
-            continue;
-        }
-
-        if (!add_key(keys, hid)) {
-            overflow = true;
-        }
-    }
-
-    if (overflow && IS_ENABLED(CONFIG_KB_HANDLER_REPORT_ROLLOVER)) {
-        report[2] = 0x01;
-        report[3] = 0x01;
-        report[4] = 0x01;
-        report[5] = 0x01;
-        report[6] = 0x01;
-        report[7] = 0x01;
-    }
+    return 0;
 }
 
 #endif // KB_HANDLER_COMMON_H

@@ -3,6 +3,7 @@
 #include "lumiscript_vm.h"
 
 #include <subsys/kb_settings.h>
+#include <subsys/zephyr_user_helpers.h>
 
 #include <drivers/kscan.h>
 
@@ -12,10 +13,6 @@
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(ykb_backlight, CONFIG_YKB_BACKLIGHT_LOG_LEVEL);
-
-#define Z_USER_PROP(prop) DT_PROP(DT_PATH(zephyr_user), prop)
-#define Z_USER_PROP_OR(prop, val) DT_PROP_OR(DT_PATH(zephyr_user), prop, val)
-#define Z_USER_DEV(prop) DEVICE_DT_GET(Z_USER_PROP(prop))
 
 #define DEFAULT_THREAD_SLEEP_MS 5
 

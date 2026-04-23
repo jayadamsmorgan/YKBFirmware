@@ -1,62 +1,56 @@
-#define DT_DRV_COMPAT kb_handler_splitlink_slave
+#include "kb_handler_common.h"
 
-#include <drivers/kb_handler.h>
-
-#include <lib/kb_settings.h>
-
-#include <drivers/kscan.h>
-#include <drivers/splitlink.h>
-
-#include <dt-bindings/kb-handler/kb-key-codes.h>
-
-#include <zephyr/devicetree.h>
-#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include <zephyr/sys/util.h>
 
-#include <string.h>
+#include "splitlink_handler/splitlink_handler.h"
 
-struct kb_handler_ss_config {
-    const struct device **kscans;
+LOG_MODULE_REGISTER(kb_handler, CONFIG_KB_HANDLER_LOG_LEVEL);
 
-    const uint16_t key_count;
-    const uint16_t key_count_master;
-    const uint16_t kscans_count;
+// static K_THREAD_STACK_DEFINE(kbh_ss_thread_stack,
+//                              CONFIG_KB_HANDLER_THREAD_STACK_SIZE);
+//
+// static struct k_thread kbh_ss_thread;
 
-    const struct device *splitlink;
-
-    const uint8_t *default_keymap_layer1;
-    const uint8_t *default_keymap_layer2;
-    const uint8_t *default_keymap_layer3;
-
-    const kb_mouseemu_settings_t *default_mouseemu;
+enum kbh_thread_msg_type {
+    KBH_THREAD_MSG_KEY = 0U,
 };
 
-struct kb_handler_ss_data {};
+static uint16_t values[KEY_COUNT_SLAVE] = {0};
 
-LOG_MODULE_REGISTER(kb_handler_ss, CONFIG_KB_HANDLER_LOG_LEVEL);
+static uint16_t new_value_counter = 0;
 
-#define KSCAN_DEV_AND_COMMA(node_id, prop, idx)                                \
-    DEVICE_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, idx)),
+static void on_new_value(uint16_t idx, uint16_t value) {
+    values[idx - KEY_COUNT] = value;
 
-#define TOTAL_KB_KEY_COUNT(inst)                                               \
-    (DT_INST_PROP(inst, key_count) + DT_INST_PROP(inst, key_count_slave))
+    new_value_counter++;
+    if (new_value_counter >= KEY_COUNT_SLAVE) {
+        new_value_counter = 0;
+        splitlink_handler_send_values(values, KEY_COUNT_SLAVE);
+    }
+}
 
-#define KB_HANDLER_SS_DEFINE(inst)                                             \
-    static const struct device *__kb_handler_ss_kscans__##inst[] = {           \
-        DT_INST_FOREACH_PROP_ELEM(inst, kscans, KSCAN_DEV_AND_COMMA)};         \
-    static const uint8_t                                                       \
-        __kb_handler_ss_default_keymap_layer1__##inst[TOTAL_KB_KEY_COUNT(      \
-            inst)] = DT_INST_PROP(inst, default_keymap_layer1);                \
-    static const uint8_t                                                       \
-        __kb_handler_ss_default_keymap_layer2__##inst[TOTAL_KB_KEY_COUNT(      \
-            inst)] =                                                           \
-            DT_INST_PROP_OR(inst, default_keymap_layer2, {KEY_NOKEY});         \
-    static const uint8_t                                                       \
-        __kb_handler_ss_default_keymap_layer3__##inst[TOTAL_KB_KEY_COUNT(      \
-            inst)] =                                                           \
-            DT_INST_PROP_OR(inst, default_keymap_layer3, {KEY_NOKEY});         \
-    K_MSGQ_DEFINE(__kb_handler_ss_thread_queue__##inst,                        \
-                  sizeof(struct kbh_thread_msg), CONFIG_KB_HANDLER_MSGQ_SIZE); \
-    K_STACK_DEFINE(__kb_handler_ss_thread_stack__##inst,                       \
-                   CONFIG_KB_HANDLER_THREAD_STACK_SIZE);
+static void on_event(uint16_t idx, bool pressed) {
+    values[idx - KEY_COUNT] = pressed;
+}
+
+KSCAN_CB_DEFINE(kbh_sm) = {
+    .on_new_value = on_new_value,
+    .on_event = on_event,
+};
+
+void splitlink_handler_settings_received(kb_settings_t *settings) {
+    int err = kb_settings_apply(settings);
+    if (err) {
+        LOG_ERR("kb_settings_apply: %d", err);
+    }
+}
+
+void splitlink_handler_on_connect() {
+    //
+    LOG_INF("SplitLink connected");
+}
+
+void splitlink_handler_on_disconnect() {
+    //
+    LOG_INF("SplitLink disconnected");
+}

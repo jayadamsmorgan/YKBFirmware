@@ -1,10 +1,13 @@
-#include <subsys/kb_handler.h>
+#include "kb_handler_common.h"
+
+#include "splitlink_handler/splitlink_handler.h"
 
 #include <lib/ykb_protocol.h>
 
 #include <subsys/bt_connect.h>
 #include <subsys/kb_settings.h>
 #include <subsys/usb_connect.h>
+#include <subsys/zephyr_user_helpers.h>
 
 #include <drivers/kscan.h>
 #include <drivers/splitlink.h>
@@ -19,72 +22,19 @@
 #include <math.h>
 #include <string.h>
 
-LOG_MODULE_REGISTER(kb_handler_sm, CONFIG_KB_HANDLER_LOG_LEVEL);
-
-#define Z_USER_PATH DT_PATH(zephyr_user)
-#define Z_USER_PROP(prop) DT_PROP(Z_USER_PATH, prop)
-#define Z_USER_PROP_OR(prop, val) DT_PROP_OR(Z_USER_PATH, prop, val)
-#define Z_USER_HAS_PROP(prop) DT_NODE_HAS_PROP(Z_USER_PATH, prop)
-#define Z_USER_DEV(prop) DEVICE_DT_GET(Z_USER_PROP(prop))
-#define Z_USER_PROP_LEN(prop) DT_PROP_LEN(Z_USER_PATH, prop)
-#define Z_USER_PROP_LEN_OR(prop, val) DT_PROP_LEN_OR(Z_USER_PATH, prop, val)
-
-#define KSCAN_DEV_AND_COMMA(node_id, prop, idx)                                \
-    DEVICE_DT_GET(DT_PHANDLE_BY_IDX(node_id, prop, idx)),
-
-#define KEY_COUNT Z_USER_PROP(kb_handler_key_count)
-#define KEY_COUNT_SLAVE Z_USER_PROP(kb_handler_key_count_slave)
-
-static const struct device *kscans[] = {DT_FOREACH_PROP_ELEM(
-    DT_PATH(zephyr_user), kb_handler_kscans, KSCAN_DEV_AND_COMMA)};
-
-static const struct device *splitlink = Z_USER_DEV(kb_handler_splitlink);
-
-static const uint8_t default_keymap_layer1[TOTAL_KEY_COUNT] =
-    Z_USER_PROP(kb_handler_default_keymap_layer1);
-static const uint8_t default_keymap_layer2[TOTAL_KEY_COUNT] =
-    Z_USER_PROP_OR(kb_handler_default_keymap_layer2, {0});
-static const uint8_t default_keymap_layer3[TOTAL_KEY_COUNT] =
-    Z_USER_PROP_OR(kb_handler_defualt_keymap_layer3, {0});
-
-static const kb_mouseemu_settings_t default_mouseemu = {
-    .enabled = Z_USER_HAS_PROP(mouseemu_enabled),
-
-    .direction_mode = Z_USER_HAS_PROP(mouseemu_8way),
-
-    .move_keys = Z_USER_PROP_OR(mouseemu_move_keys, {0}),
-    .move_keys_count = Z_USER_PROP_LEN_OR(mouseemu_move_keys, 0),
-
-    .button_keys = Z_USER_PROP_OR(mouseemu_button_keys, {0}),
-    .button_keys_count = Z_USER_PROP_OR(mouseemu_button_keys, 0),
-
-    .scroll_keys = Z_USER_PROP_OR(mouseemu_scroll_keys, {0}),
-    .scroll_keys_count = Z_USER_PROP_LEN_OR(mouseemu_scroll_keys, 0),
-
-    .move_x_k = (double)Z_USER_PROP_OR(mouseemu_move_x_k_mul, 1) /
-                Z_USER_PROP_OR(mouseemu_move_x_k_div, 1),
-    .move_y_k = (double)Z_USER_PROP_OR(mouseemu_move_y_k_mul, 1) /
-                Z_USER_PROP_OR(mouseemu_move_y_k_div, 1),
-    .scroll_k = (double)Z_USER_PROP_OR(mouseemu_scroll_k_mul, 1) /
-                Z_USER_PROP_OR(mouseemu_scroll_k_div, 1),
-
-    .move_keys_deadzones = Z_USER_PROP_OR(mouseemu_move_keys_deadzones, {0}),
-    .scroll_keys_deadzones =
-        Z_USER_PROP_OR(mouseemu_scroll_keys_deadzones, {0}),
-};
+LOG_MODULE_REGISTER(kb_handler, CONFIG_KB_HANDLER_LOG_LEVEL);
 
 static K_THREAD_STACK_DEFINE(kbh_sm_thread_stack,
                              CONFIG_KB_HANDLER_THREAD_STACK_SIZE);
-
 static struct k_thread kbh_sm_thread;
 
 static kb_settings_t settings_snapshot;
-
 static bool thread_started;
 
 enum kbh_thread_msg_type {
     KBH_THREAD_MSG_KEY = 0U,
     KBH_THREAD_MSG_VALUE,
+    KBH_THREAD_MSG_SLAVE_VALUES,
     KBH_THREAD_MSG_SLAVE_KEYS_RESET,
     KBH_THREAD_MSG_SETTINGS_SYNC,
 };
@@ -94,6 +44,28 @@ struct kbh_thread_msg {
     uint16_t key;
     bool status;
     uint16_t value;
+    uint16_t slave_values[KEY_COUNT_SLAVE];
+};
+
+struct kbh_runtime_state {
+    kb_settings_t *settings;
+    kb_mode_t active_mode;
+
+    bool second_layer_active;
+    bool third_layer_active;
+
+    bool pressed_keys[TOTAL_KEY_COUNT];
+    uint16_t current_values[TOTAL_KEY_COUNT];
+
+    uint16_t layer1_keys[TOTAL_KEY_COUNT];
+    uint16_t layer2_keys[TOTAL_KEY_COUNT];
+    uint8_t layer1_keys_count;
+    uint8_t layer2_keys_count;
+
+    hid_kb_report_t kb_report;
+    hid_kb_report_t prev_kb_report;
+    hid_mouse_report_t mouse_report;
+    hid_mouse_report_t prev_mouse_report;
 };
 
 K_MSGQ_DEFINE(kbh_sm_msgq, sizeof(struct kbh_thread_msg),
@@ -140,14 +112,15 @@ static inline uint8_t resolve_hid(const kb_settings_t *settings, uint16_t key,
     return settings->mappings_layer1[key];
 }
 
-static bool add_key(uint8_t keys[6], uint8_t hid) {
+static inline bool add_key(uint8_t keys[6], uint8_t hid) {
     for (int i = 0; i < 6; ++i) {
         if (keys[i] == hid) {
             return true;
         }
     }
+
     for (int i = 0; i < 6; ++i) {
-        if (keys[i] == 0) {
+        if (keys[i] == 0U) {
             keys[i] = hid;
             return true;
         }
@@ -166,13 +139,12 @@ static void build_kb_report(hid_kb_report_t *report, kb_settings_t *settings,
     bool overflow = false;
 
     for (uint16_t i = 0; i < total_key_count; ++i) {
-        uint8_t hid;
-
         if (!pressed_keys[i]) {
             continue;
         }
 
-        hid = resolve_hid(settings, i, second_layer_active, third_layer_active);
+        uint8_t hid =
+            resolve_hid(settings, i, second_layer_active, third_layer_active);
 
         if (hid == KEY_LAYER1 || hid == KEY_LAYER2 || hid == KEY_FN ||
             hid == KEY_NOKEY) {
@@ -190,12 +162,7 @@ static void build_kb_report(hid_kb_report_t *report, kb_settings_t *settings,
     }
 
     if (overflow && IS_ENABLED(CONFIG_KB_HANDLER_REPORT_ROLLOVER)) {
-        report->keys[0] = 0x01;
-        report->keys[1] = 0x01;
-        report->keys[2] = 0x01;
-        report->keys[3] = 0x01;
-        report->keys[4] = 0x01;
-        report->keys[5] = 0x01;
+        memset(report->keys, 0x01, sizeof(report->keys));
     }
 }
 
@@ -211,42 +178,32 @@ static void build_layer_keys(const kb_settings_t *settings,
 
     for (uint16_t i = 0; i < total_key_count; ++i) {
         if (settings->mappings_layer1[i] == KEY_LAYER1) {
-            layer1_keys[*layer1_keys_count] = i;
-            (*layer1_keys_count)++;
+            layer1_keys[(*layer1_keys_count)++] = i;
         }
         if (settings->mappings_layer1[i] == KEY_LAYER2) {
-            layer2_keys[*layer2_keys_count] = i;
-            (*layer2_keys_count)++;
+            layer2_keys[(*layer2_keys_count)++] = i;
         }
     }
 }
 
-static bool handle_layer_key(const struct kbh_thread_msg *msg,
+static bool handle_layer_key(uint16_t key, bool status,
                              const bool *pressed_keys, bool *layer_active,
                              const uint16_t *layer_keys,
                              uint8_t layer_key_count) {
-    if (!msg->status) {
-        bool other_layer_pressed = false;
-
+    if (!status) {
         for (uint8_t i = 0; i < layer_key_count; ++i) {
             uint16_t layer_key = layer_keys[i];
 
-            if (layer_key == msg->key) {
+            if (layer_key == key) {
                 continue;
             }
             if (pressed_keys[layer_key]) {
-                other_layer_pressed = true;
-                break;
+                return false;
             }
-        }
-
-        if (other_layer_pressed) {
-            return false;
         }
     }
 
-    *layer_active = msg->status;
-
+    *layer_active = status;
     return true;
 }
 
@@ -258,30 +215,6 @@ static inline bool kb_reports_equal(const hid_kb_report_t *a,
 static inline bool mouse_reports_equal(const hid_mouse_report_t *a,
                                        const hid_mouse_report_t *b) {
     return memcmp(a, b, sizeof(*a)) == 0;
-}
-
-static void reset_handler_state(bool *pressed_keys, uint16_t *current_values,
-                                uint16_t total_key_count,
-                                bool *second_layer_active,
-                                bool *third_layer_active,
-                                hid_kb_report_t *kb_report,
-                                hid_mouse_report_t *mouse_report) {
-    memset(pressed_keys, 0, total_key_count * sizeof(bool));
-    memset(current_values, 0, total_key_count * sizeof(uint16_t));
-
-    *second_layer_active = false;
-    *third_layer_active = false;
-
-    kb_report->mods = 0;
-    kb_report->reserved = 0;
-    memset(kb_report->keys, 0, sizeof(kb_report->keys));
-    send_kb_report(kb_report);
-
-    mouse_report->buttons = 0;
-    mouse_report->wheel = 0;
-    mouse_report->x = 0;
-    mouse_report->y = 0;
-    send_mouse_report(mouse_report);
 }
 
 static inline uint16_t mouseemu_vector_value(uint16_t *current_values,
@@ -309,13 +242,13 @@ static inline uint16_t mouseemu_vector_value(uint16_t *current_values,
                         ? right_vec - emu->move_keys_deadzones[right_vec_idx]
                         : 0;
 
-        return straight_vec + (left_vec / 2) + (right_vec / 2);
+        return straight_vec + (left_vec / 2U) + (right_vec / 2U);
     }
 
     return straight_vec;
 }
 
-static int8_t clamp_s8(double v) {
+static inline int8_t clamp_s8(double v) {
     if (v > 127.0) {
         return 127;
     }
@@ -349,30 +282,25 @@ static void mouseemu_value_handler(kb_settings_t *settings,
         int32_t x_neg =
             (int32_t)mouseemu_vector_value(current_values, emu, 6, 0, 4);
 
-        double y = (double)(y_pos - y_neg) * emu->move_y_k;
-        double x = (double)(x_pos - x_neg) * emu->move_x_k;
-
-        report->x = clamp_s8(x);
-        report->y = clamp_s8(y);
+        report->x = clamp_s8((double)(x_pos - x_neg) * emu->move_x_k);
+        report->y = clamp_s8((double)(y_pos - y_neg) * emu->move_y_k);
     }
 
     if (emu->scroll_keys_count == 2U) {
-        uint16_t scrollup_key_idx = emu->scroll_keys[0];
-        uint16_t scrollup_val = current_values[scrollup_key_idx];
-        int32_t scrollup =
-            scrollup_val >= emu->scroll_keys_deadzones[0]
-                ? (int32_t)(scrollup_val - emu->scroll_keys_deadzones[0])
-                : 0;
+        uint16_t up_idx = emu->scroll_keys[0];
+        uint16_t down_idx = emu->scroll_keys[1];
 
-        uint16_t scrolldown_key_idx = emu->scroll_keys[1];
-        uint16_t scrolldown_val = current_values[scrolldown_key_idx];
-        int32_t scrolldown =
-            scrolldown_val >= emu->scroll_keys_deadzones[1]
-                ? (int32_t)(scrolldown_val - emu->scroll_keys_deadzones[1])
-                : 0;
+        int32_t up = current_values[up_idx] >= emu->scroll_keys_deadzones[0]
+                         ? (int32_t)(current_values[up_idx] -
+                                     emu->scroll_keys_deadzones[0])
+                         : 0;
 
-        double scroll = (double)(scrollup - scrolldown) * emu->scroll_k;
-        report->wheel = clamp_s8(scroll);
+        int32_t down = current_values[down_idx] >= emu->scroll_keys_deadzones[1]
+                           ? (int32_t)(current_values[down_idx] -
+                                       emu->scroll_keys_deadzones[1])
+                           : 0;
+
+        report->wheel = clamp_s8((double)(up - down) * emu->scroll_k);
     }
 
     if (emu->button_keys_count >= 1U && pressed_keys[emu->button_keys[0]]) {
@@ -386,38 +314,179 @@ static void mouseemu_value_handler(kb_settings_t *settings,
     }
 }
 
+static inline void send_kb_report_if_changed(struct kbh_runtime_state *st) {
+    build_kb_report(&st->kb_report, st->settings, st->pressed_keys,
+                    TOTAL_KEY_COUNT, st->second_layer_active,
+                    st->third_layer_active);
+
+    if (!kb_reports_equal(&st->kb_report, &st->prev_kb_report)) {
+        send_kb_report(&st->kb_report);
+        st->prev_kb_report = st->kb_report;
+    }
+}
+
+static inline void send_mouse_report_if_changed(struct kbh_runtime_state *st) {
+    mouseemu_value_handler(st->settings, st->current_values, st->pressed_keys,
+                           &st->mouse_report);
+
+    if (!mouse_reports_equal(&st->mouse_report, &st->prev_mouse_report)) {
+        send_mouse_report(&st->mouse_report);
+        st->prev_mouse_report = st->mouse_report;
+    }
+}
+
+static void send_race_report_if_changed(struct kbh_runtime_state *st) {
+    double max_percentage = 0.0;
+    int32_t max_index = -1;
+    bool pressed_race[TOTAL_KEY_COUNT];
+
+    memset(pressed_race, 0, sizeof(pressed_race));
+
+    for (uint16_t i = 0; i < TOTAL_KEY_COUNT; ++i) {
+        if (!st->pressed_keys[i]) {
+            continue;
+        }
+
+        uint16_t threshold = st->settings->thresholds[i];
+        uint16_t maximum = st->settings->maximums[i];
+
+        if (maximum <= threshold) {
+            continue;
+        }
+
+        double percentage_pressed =
+            (double)(st->current_values[i] - threshold) / (maximum - threshold);
+
+        if (percentage_pressed > max_percentage) {
+            max_percentage = percentage_pressed;
+            max_index = i;
+        }
+    }
+
+    if (max_index >= 0) {
+        pressed_race[max_index] = true;
+    }
+
+    build_kb_report(&st->kb_report, st->settings, pressed_race, TOTAL_KEY_COUNT,
+                    st->second_layer_active, st->third_layer_active);
+
+    if (!kb_reports_equal(&st->kb_report, &st->prev_kb_report)) {
+        send_kb_report(&st->kb_report);
+        st->prev_kb_report = st->kb_report;
+    }
+}
+
+static inline void reset_handler_state(struct kbh_runtime_state *st) {
+    memset(st->pressed_keys, 0, sizeof(st->pressed_keys));
+    memset(st->current_values, 0, sizeof(st->current_values));
+
+    st->second_layer_active = false;
+    st->third_layer_active = false;
+
+    memset(&st->kb_report, 0, sizeof(st->kb_report));
+    memset(&st->mouse_report, 0, sizeof(st->mouse_report));
+
+    send_kb_report(&st->kb_report);
+    send_mouse_report(&st->mouse_report);
+
+    st->prev_kb_report = st->kb_report;
+    st->prev_mouse_report = st->mouse_report;
+}
+
+static inline void rebuild_layer_cache(struct kbh_runtime_state *st) {
+    build_layer_keys(st->settings, TOTAL_KEY_COUNT, st->layer1_keys,
+                     &st->layer1_keys_count, st->layer2_keys,
+                     &st->layer2_keys_count);
+}
+
+static void process_key_transition(struct kbh_runtime_state *st, uint16_t key,
+                                   bool status) {
+    if (key >= TOTAL_KEY_COUNT) {
+        LOG_WRN("Ignoring out-of-range key %u", key);
+        return;
+    }
+
+    st->pressed_keys[key] = status;
+
+    if (st->active_mode == KB_MODE_RACE) {
+        return;
+    }
+
+    uint8_t resolved_hid = resolve_hid(
+        st->settings, key, st->second_layer_active, st->third_layer_active);
+
+    LOG_DBG("Key %s idx %u", status ? "pressed" : "released", key);
+
+    if (resolved_hid == KEY_LAYER1) {
+        if (!handle_layer_key(key, status, st->pressed_keys,
+                              &st->second_layer_active, st->layer1_keys,
+                              st->layer1_keys_count)) {
+            return;
+        }
+    } else if (resolved_hid == KEY_LAYER2) {
+        if (!handle_layer_key(key, status, st->pressed_keys,
+                              &st->third_layer_active, st->layer2_keys,
+                              st->layer2_keys_count)) {
+            return;
+        }
+    } else if (resolved_hid == KEY_FN) {
+        return;
+    }
+
+    if (st->active_mode == KB_MODE_NORMAL ||
+        st->active_mode == KB_MODE_MOUSESIM) {
+        send_kb_report_if_changed(st);
+    }
+
+    if (st->active_mode == KB_MODE_MOUSESIM) {
+        send_mouse_report_if_changed(st);
+    }
+}
+
+static void handle_slave_values(struct kbh_runtime_state *st,
+                                const uint16_t slave_values[KEY_COUNT_SLAVE]) {
+    bool prev_pressed_keys[TOTAL_KEY_COUNT];
+
+    memcpy(prev_pressed_keys, st->pressed_keys, sizeof(prev_pressed_keys));
+    memcpy(&st->current_values[KEY_COUNT], slave_values,
+           sizeof(uint16_t) * KEY_COUNT_SLAVE);
+
+    for (uint16_t i = KEY_COUNT; i < TOTAL_KEY_COUNT; ++i) {
+        st->pressed_keys[i] =
+            st->current_values[i] >= st->settings->thresholds[i];
+    }
+
+    for (uint16_t i = KEY_COUNT; i < TOTAL_KEY_COUNT; ++i) {
+        if (prev_pressed_keys[i] != st->pressed_keys[i]) {
+            process_key_transition(st, i, st->pressed_keys[i]);
+        }
+    }
+
+    if (st->active_mode == KB_MODE_MOUSESIM) {
+        send_mouse_report_if_changed(st);
+    }
+
+    if (st->active_mode == KB_MODE_RACE) {
+        send_race_report_if_changed(st);
+    }
+}
+
 static void kb_handler_thread(void *a, void *b, void *c) {
+    ARG_UNUSED(a);
+    ARG_UNUSED(b);
+    ARG_UNUSED(c);
+
     struct kbh_thread_msg msg;
-    kb_settings_t *set_snap = &settings_snapshot;
-    bool second_layer_active = false;
-    bool third_layer_active = false;
-    bool pressed_keys[TOTAL_KEY_COUNT];
-    uint16_t current_values[TOTAL_KEY_COUNT];
-    uint16_t layer1_keys[TOTAL_KEY_COUNT];
-    uint16_t layer2_keys[TOTAL_KEY_COUNT];
-    uint8_t layer1_keys_count = 0;
-    uint8_t layer2_keys_count = 0;
+    struct kbh_runtime_state st = {
+        .settings = &settings_snapshot,
+        .active_mode = settings_snapshot.mode,
+    };
 
-    hid_kb_report_t kb_report = {};
-    hid_kb_report_t prev_kb_report = {};
-    hid_mouse_report_t mouse_report = {};
-    hid_mouse_report_t prev_mouse_report = {};
-
-    kb_mode_t active_mode = set_snap->mode;
-
-    build_layer_keys(set_snap, TOTAL_KEY_COUNT, layer1_keys, &layer1_keys_count,
-                     layer2_keys, &layer2_keys_count);
-
-    reset_handler_state(pressed_keys, current_values, TOTAL_KEY_COUNT,
-                        &second_layer_active, &third_layer_active, &kb_report,
-                        &mouse_report);
-
-    prev_kb_report = kb_report;
-    prev_mouse_report = mouse_report;
+    rebuild_layer_cache(&st);
+    reset_handler_state(&st);
 
     while (true) {
         int err = k_msgq_get(&kbh_sm_msgq, &msg, K_FOREVER);
-
         if (err) {
             LOG_ERR("k_msgq_get: %d", err);
             continue;
@@ -425,162 +494,57 @@ static void kb_handler_thread(void *a, void *b, void *c) {
 
         switch (msg.type) {
         case KBH_THREAD_MSG_SETTINGS_SYNC:
-            active_mode = set_snap->mode;
-            build_layer_keys(set_snap, TOTAL_KEY_COUNT, layer1_keys,
-                             &layer1_keys_count, layer2_keys,
-                             &layer2_keys_count);
-
-            reset_handler_state(pressed_keys, current_values, TOTAL_KEY_COUNT,
-                                &second_layer_active, &third_layer_active,
-                                &kb_report, &mouse_report);
-
-            prev_kb_report = kb_report;
-            prev_mouse_report = mouse_report;
-            continue;
+            st.active_mode = st.settings->mode;
+            rebuild_layer_cache(&st);
+            reset_handler_state(&st);
+            break;
 
         case KBH_THREAD_MSG_SLAVE_KEYS_RESET:
-            memset(&pressed_keys[KEY_COUNT], 0, KEY_COUNT_SLAVE * sizeof(bool));
-            memset(&current_values[KEY_COUNT], 0,
+            memset(&st.pressed_keys[KEY_COUNT], 0,
+                   KEY_COUNT_SLAVE * sizeof(bool));
+            memset(&st.current_values[KEY_COUNT], 0,
                    KEY_COUNT_SLAVE * sizeof(uint16_t));
 
-            mouseemu_value_handler(set_snap, current_values, pressed_keys,
-                                   &mouse_report);
-
-            if (!mouse_reports_equal(&mouse_report, &prev_mouse_report)) {
-                send_mouse_report(&mouse_report);
-                prev_mouse_report = mouse_report;
+            if (st.active_mode == KB_MODE_MOUSESIM) {
+                send_mouse_report_if_changed(&st);
             }
 
-            goto handle_kb_report;
-
-            continue;
+            if (st.active_mode == KB_MODE_NORMAL ||
+                st.active_mode == KB_MODE_MOUSESIM) {
+                send_kb_report_if_changed(&st);
+            } else if (st.active_mode == KB_MODE_RACE) {
+                send_race_report_if_changed(&st);
+            }
+            break;
 
         case KBH_THREAD_MSG_KEY:
-            if (msg.key >= TOTAL_KEY_COUNT) {
-                LOG_WRN("Ignoring out-of-range key %u", msg.key);
-                continue;
-            }
+            process_key_transition(&st, msg.key, msg.status);
+            break;
 
-            if (active_mode == KB_MODE_RACE) {
-                continue;
-            }
-
-            pressed_keys[msg.key] = msg.status;
-
-            if (active_mode == KB_MODE_NORMAL ||
-                active_mode == KB_MODE_MOUSESIM) {
-                uint8_t resolved_hid = resolve_hid(
-                    set_snap, msg.key, second_layer_active, third_layer_active);
-
-                LOG_DBG("Key %s idx %u", msg.status ? "pressed" : "released",
-                        msg.key);
-
-                if (resolved_hid == KEY_LAYER1) {
-                    if (handle_layer_key(&msg, pressed_keys,
-                                         &second_layer_active, layer1_keys,
-                                         layer1_keys_count)) {
-                        goto handle_kb_report;
-                    }
-                    continue;
-                }
-
-                if (resolved_hid == KEY_LAYER2) {
-                    if (handle_layer_key(&msg, pressed_keys,
-                                         &third_layer_active, layer2_keys,
-                                         layer2_keys_count)) {
-                        goto handle_kb_report;
-                    }
-                    continue;
-                }
-
-                if (resolved_hid == KEY_FN) {
-                    continue;
-                }
-
-            handle_kb_report:
-                build_kb_report(&kb_report, set_snap, pressed_keys,
-                                TOTAL_KEY_COUNT, second_layer_active,
-                                third_layer_active);
-
-                if (!kb_reports_equal(&kb_report, &prev_kb_report)) {
-                    send_kb_report(&kb_report);
-                    prev_kb_report = kb_report;
-                }
-                continue;
-            }
-
-            if (active_mode == KB_MODE_MOUSESIM) {
-                mouseemu_value_handler(set_snap, current_values, pressed_keys,
-                                       &mouse_report);
-
-                if (!mouse_reports_equal(&mouse_report, &prev_mouse_report)) {
-                    send_mouse_report(&mouse_report);
-                    prev_mouse_report = mouse_report;
-                }
-                continue;
-            }
-
-            LOG_WRN("Unknown keyboard mode %u", active_mode);
-            continue;
+        case KBH_THREAD_MSG_SLAVE_VALUES:
+            handle_slave_values(&st, msg.slave_values);
+            break;
 
         case KBH_THREAD_MSG_VALUE:
             if (msg.key >= TOTAL_KEY_COUNT) {
                 LOG_WRN("Ignoring out-of-range value key %u", msg.key);
-                continue;
+                break;
             }
 
-            current_values[msg.key] = msg.value;
+            st.current_values[msg.key] = msg.value;
 
-            if (active_mode == KB_MODE_MOUSESIM) {
-                mouseemu_value_handler(set_snap, current_values, pressed_keys,
-                                       &mouse_report);
-
-                if (!mouse_reports_equal(&mouse_report, &prev_mouse_report)) {
-                    send_mouse_report(&mouse_report);
-                    prev_mouse_report = mouse_report;
-                }
-                continue;
+            if (st.active_mode == KB_MODE_MOUSESIM) {
+                send_mouse_report_if_changed(&st);
             }
 
-            if (active_mode == KB_MODE_RACE) {
-                // In race mode the key still has to be past the threshold to be
-                // accounted for. That's because I don't know of a better way
-                // for now.
-                double max_percentage = 0;
-                int32_t max_index = -1;
-                bool pressed_race[TOTAL_KEY_COUNT];
-                memset(pressed_race, 0, sizeof(pressed_race));
-                for (uint16_t i = 0; i < TOTAL_KEY_COUNT; ++i) {
-                    if (pressed_keys[i]) {
-                        uint16_t threshold = set_snap->thresholds[i];
-                        double percentage_pressed =
-                            (double)(current_values[i] - threshold) /
-                            (set_snap->maximums[i] - threshold);
-                        if (percentage_pressed > max_percentage) {
-                            max_percentage = percentage_pressed;
-                            max_index = i;
-                        }
-                    }
-                }
-
-                if (max_index != -1) {
-                    pressed_race[max_index] = true;
-                }
-
-                build_kb_report(&kb_report, set_snap, pressed_race,
-                                TOTAL_KEY_COUNT, second_layer_active,
-                                third_layer_active);
-
-                if (!kb_reports_equal(&kb_report, &prev_kb_report)) {
-                    send_kb_report(&kb_report);
-                    prev_kb_report = kb_report;
-                }
+            if (st.active_mode == KB_MODE_RACE) {
+                send_race_report_if_changed(&st);
             }
-            continue;
+            break;
 
         default:
             LOG_WRN("Unknown kb handler thread msg type %u", msg.type);
-            continue;
+            break;
         }
     }
 }
@@ -606,38 +570,35 @@ static inline void kb_handler_sm_value_handler(uint16_t key_index,
     k_msgq_put(&kbh_sm_msgq, &data, K_NO_WAIT);
 }
 
+KSCAN_CB_DEFINE(kbh_sm) = {
+    .on_event = kb_handler_sm_key_handler,
+    .on_new_value = kb_handler_sm_value_handler,
+};
+
 void splitlink_handler_values_received(uint16_t *values, uint16_t count) {
-    for (uint16_t i = 0; i < count; ++i) {
-        struct kbh_thread_msg data = {
-            .type = KBH_THREAD_MSG_VALUE,
-            .key = i,
-            .value = values[i],
-        };
-        k_msgq_put(&kbh_sm_msgq, &data, K_NO_WAIT);
+    if (count != KEY_COUNT_SLAVE) {
+        LOG_ERR("Slave values size mismatch");
+        return;
     }
+    struct kbh_thread_msg data = {
+        .type = KBH_THREAD_MSG_SLAVE_VALUES,
+    };
+    memcpy(data.slave_values, values, sizeof(uint16_t) * count);
+    k_msgq_put(&kbh_sm_msgq, &data, K_NO_WAIT);
 }
 
-void splitlink_handler_settings_received(kb_settings_t *settings) {}
-
-static inline void kb_handler_sm_splitlink_on_connect(const struct device *dev,
-                                                      struct k_msgq *msgq) {
-    ARG_UNUSED(dev);
-    ARG_UNUSED(msgq);
-
+void splitlink_handler_on_connect() {
+    //
     LOG_INF("SplitLink slave connected");
 }
 
-static inline void
-kb_handler_sm_splitlink_on_disconnect(const struct device *dev,
-                                      struct k_msgq *msgq) {
+void splitlink_handler_on_disconnect() {
     struct kbh_thread_msg data = {
         .type = KBH_THREAD_MSG_SLAVE_KEYS_RESET,
     };
 
-    ARG_UNUSED(dev);
-
     LOG_WRN("SplitLink slave disconnected");
-    int err = k_msgq_put(msgq, &data, K_NO_WAIT);
+    int err = k_msgq_put(&kbh_sm_msgq, &data, K_NO_WAIT);
     if (err) {
         LOG_WRN("Event slave keys reset skipped (err %d)", err);
     }
@@ -757,7 +718,7 @@ static void mouseemu_check(uint16_t total_key_count,
                                "button");
 }
 
-static inline void kb_handler_sm_on_settings_update(kb_settings_t *settings) {
+static void kb_handler_sm_on_settings_update(kb_settings_t *settings) {
     if (thread_started) {
         k_thread_suspend(&kbh_sm_thread);
         k_msgq_purge(&kbh_sm_msgq);
@@ -807,19 +768,21 @@ static inline void kb_handler_sm_on_settings_update(kb_settings_t *settings) {
     }
 }
 
+ON_SETTINGS_UPDATE_DEFINE(kbh_sm, kb_handler_sm_on_settings_update);
+
 static int kb_handler_sm_init(void) {
     thread_started = false;
-
-    if (!device_is_ready(splitlink)) {
-        LOG_ERR("Splitlink device '%s' is not ready", splitlink->name);
-        return -1;
-    }
 
     for (uint16_t i = 0; i < ARRAY_SIZE(kscans); ++i) {
         if (!device_is_ready(kscans[i])) {
             LOG_ERR("KScan device '%s' is not ready", kscans[i]->name);
             return -1;
         }
+    }
+
+    int err = splitlink_handler_init();
+    if (err) {
+        return -2;
     }
 
     kscans_check();
@@ -829,63 +792,3 @@ static int kb_handler_sm_init(void) {
 }
 
 SYS_INIT(kb_handler_sm_init, POST_KERNEL, CONFIG_KB_HANDLER_INIT_PRIORITY);
-
-int kb_handler_get_default_thresholds(uint16_t *buffer) {
-    if (buffer) {
-        for (size_t i = 0; i < ARRAY_SIZE(kscans); ++i) {
-            const struct device *kscan = kscans[i];
-            int key_amount = kscan_get_key_amount(kscan);
-            int idx_offset = kscan_get_idx_offset(kscan);
-            int res;
-
-            if (key_amount < 0) {
-                return key_amount;
-            }
-            if (idx_offset < 0) {
-                return idx_offset;
-            }
-
-            res = kscan_get_default_thresholds(kscan, &buffer[idx_offset]);
-            if (res < 0) {
-                return res;
-            }
-        }
-    }
-
-    return 0;
-}
-
-int kb_handler_get_default_keymap_layer1(uint8_t *buffer) {
-    if (buffer) {
-        memcpy(buffer, default_keymap_layer1,
-               TOTAL_KEY_COUNT * sizeof(uint8_t));
-    }
-
-    return 0;
-}
-
-int kb_handler_get_default_keymap_layer2(uint8_t *buffer) {
-    if (buffer) {
-        memcpy(buffer, default_keymap_layer2,
-               TOTAL_KEY_COUNT * sizeof(uint8_t));
-    }
-
-    return 0;
-}
-
-int kb_handler_get_default_keymap_layer3(uint8_t *buffer) {
-    if (buffer) {
-        memcpy(buffer, default_keymap_layer3,
-               TOTAL_KEY_COUNT * sizeof(uint8_t));
-    }
-
-    return 0;
-}
-
-int kb_handler_get_default_mouseemu(kb_mouseemu_settings_t *buffer) {
-    if (buffer) {
-        memcpy(buffer, &default_mouseemu, sizeof(kb_mouseemu_settings_t));
-    }
-
-    return 0;
-}

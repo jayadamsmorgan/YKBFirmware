@@ -29,7 +29,7 @@ if KB_SETTINGS
 
         config KB_SETTINGS_YKB_BL_SCRIPT_STORAGE_LEN
             int "Amount of storage (in bytes) reserved for Lumiscript backlight scripts available in KB Settings"
-            default 4096
+            default 2048
 
         config KB_SETTINGS_YKB_BL_SCRIPT_NAME_MAX_LEN
             int "Maximum amount of characters for a Lumiscript backlight script name"

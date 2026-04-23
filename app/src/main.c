@@ -127,44 +127,44 @@ int main(void) {
 
 // #endif // CONFIG_BOARD_DACTYL_V1_NRF5340_CPUAPP_LEFT
 
-#if CONFIG_BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT
-
-SPLITLINK_CB_DEFINE(main) = {
-    .connect_cb = connect,
-    .disconnect_cb = disconnect,
-};
-
-static void on_event(uint16_t key_index, bool pressed) {
-    uint8_t data[2] = {1, 0};
-    ARG_UNUSED(key_index);
-
-    data[0] = pressed ? 1 : 0;
-    splitlink_send(splitlink, data, 2);
-}
-
-static void on_value_changed(uint16_t key_index, uint16_t value) {
-    ARG_UNUSED(key_index);
-    ARG_UNUSED(value);
-}
-
-KSCAN_CB_DEFINE(main) = {
-    .on_event = on_event,
-    .on_value_changed = on_value_changed,
-};
-
-int main(void) {
-
-    k_sleep(K_MSEC(500));
-    int err = splitlink_esb_init(splitlink);
-    if (err) {
-        LOG_ERR("ESB: %d", err);
-        return 0;
-    }
-
-    while (true) {
-        k_sleep(K_MSEC(2000));
-    }
-    return 0;
-}
-
-#endif // CONFIG_BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT
+// #if CONFIG_BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT
+//
+// SPLITLINK_CB_DEFINE(main) = {
+//     .connect_cb = connect,
+//     .disconnect_cb = disconnect,
+// };
+//
+// static void on_event(uint16_t key_index, bool pressed) {
+//     uint8_t data[2] = {1, 0};
+//     ARG_UNUSED(key_index);
+//
+//     data[0] = pressed ? 1 : 0;
+//     splitlink_send(splitlink, data, 2);
+// }
+//
+// static void on_value_changed(uint16_t key_index, uint16_t value) {
+//     ARG_UNUSED(key_index);
+//     ARG_UNUSED(value);
+// }
+//
+// KSCAN_CB_DEFINE(main) = {
+//     .on_event = on_event,
+//     .on_value_changed = on_value_changed,
+// };
+//
+// int main(void) {
+//
+//     k_sleep(K_MSEC(500));
+//     int err = splitlink_esb_init(splitlink);
+//     if (err) {
+//         LOG_ERR("ESB: %d", err);
+//         return 0;
+//     }
+//
+//     while (true) {
+//         k_sleep(K_MSEC(2000));
+//     }
+//     return 0;
+// }
+//
+// #endif // CONFIG_BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT

@@ -1,0 +1,24 @@
+if KB_HANDLER_SPLITLINK
+
+    choice KB_HANDLER_SPLITLINK_HANDLER_IMPL
+        prompt "Splitlink driver handler"
+        
+        config KB_HANDLER_SPLITLINK_HANDLER_IMPL_YKB_PROTO
+            bool "Splitlink driver handler over YKB protocol"
+
+    endchoice
+
+    if KB_HANDLER_SPLITLINK_HANDLER_IMPL_YKB_PROTO
+
+        config KB_HANDLER_SL_OUT_OF_ORDER_TRACK
+            bool "Enable out-of-order feature of YKB protocol"
+            default n
+
+        config KB_HANDLER_SL_BITMAP_LENGTH
+            bool "Bitmap length for out-of-order feature"
+            depends on KB_HANDLER_SL_OUT_OF_ORDER_TRACK
+            default 32
+
+    endif # KB_HANDLER_SPLITLINK_HANDLER_IMPL_YKB_PROTO
+
+endif # KB_HANDLER_SPLITLINK

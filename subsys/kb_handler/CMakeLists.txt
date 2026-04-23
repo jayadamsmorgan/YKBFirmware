@@ -1,5 +1,8 @@
 zephyr_library()
 
 zephyr_library_sources_ifdef(CONFIG_KB_HANDLER_SIMPLE src/kb_handler_simple.c)
+
 zephyr_library_sources_ifdef(CONFIG_KB_HANDLER_SPLITLINK_MASTER src/kb_handler_splitlink_master.c)
 zephyr_library_sources_ifdef(CONFIG_KB_HANDLER_SPLITLINK_SLAVE src/kb_handler_splitlink_slave.c)
+
+zephyr_library_sources_ifdef(CONFIG_KB_HANDLER_SPLITLINK_HANDLER_IMPL_YKB_PROTO src/splitlink_handler/splitlink_ykb_protocol.c)
