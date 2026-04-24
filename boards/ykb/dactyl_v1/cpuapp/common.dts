@@ -203,17 +203,17 @@ zephyr_udc0: &usbd {
 
 		boot_partition: partition@0 {
 			label = "mcuboot";
-			reg = <0x00000000 0x00020000>;
+			reg = <0x00000000 0x00014000>;
 		};
 
-		slot0_partition: partition@20000 {
+		slot0_partition: partition@14000 {
 			label = "image-0";
-			reg = <0x00020000 0x00048000>;
+			reg = <0x00014000 0x0004E000>;
 		};
 
-		slot1_partition: partition@68000 {
+		slot1_partition: partition@62000 {
 			label = "image-1";
-			reg = <0x00068000 0x00048000>;
+			reg = <0x00062000 0x0004E000>;
 		};
 
 		netcore_slot_partition: partition@b0000 {
