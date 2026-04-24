@@ -4,6 +4,27 @@
 
 LOG_MODULE_REGISTER(splitlink_esb_prx, CONFIG_SPLITLINK_LOG_LEVEL);
 
+static int splitlink_ykb_esb_send(const struct device *dev, uint8_t *data,
+                                  size_t data_len) {
+    if (data_len == 0 || data == NULL) {
+        LOG_ERR("Invalid argument.");
+        return -EINVAL;
+    }
+    if (data_len > CONFIG_ESB_MAX_PAYLOAD_LENGTH - 1) {
+        LOG_ERR("Packet length is too high (%u > %u)", data_len,
+                CONFIG_ESB_MAX_PAYLOAD_LENGTH - 1);
+        return -EINVAL;
+    }
+
+    ykb_esb_data_t packet = {
+        .len = data_len + 1,
+    };
+    memcpy(&packet.data[1], data, data_len);
+    packet.data[0] = FLAG_DATA;
+
+    return ykb_esb_send(&packet);
+}
+
 static void connect_work_handler(struct k_work *work) {
     struct device_work *dev_work = CONTAINER_OF(work, struct device_work, work);
 
@@ -70,6 +91,7 @@ static void init_work_handler(struct k_work *work) {
     struct delayable_device_work *init_work =
         CONTAINER_OF(work, struct delayable_device_work, d_work.work);
     const struct splitlink_config *cfg = init_work->dev->config;
+    struct splitlink_data *data = init_work->dev->data;
 
     ykb_esb_config_t esb_cfg = {
         .mode = YKB_ESB_MODE_PRX,
@@ -83,12 +105,16 @@ static void init_work_handler(struct k_work *work) {
     int err = ykb_esb_init(&esb_cfg, on_esb_callback);
     if (err) {
         LOG_ERR("Unable to initialize YKB ESB: %d", err);
+    } else {
+        LOG_INF("Init work handler OK");
+        data->ready = true;
     }
 }
 
 static int splitlink_esb_init(const struct device *dev) {
     struct splitlink_data *data = dev->data;
 
+    data->init_work.dev = dev;
     data->connect_work.dev = dev;
     data->disconnect_work.dev = dev;
     data->receiving_work.dev = dev;

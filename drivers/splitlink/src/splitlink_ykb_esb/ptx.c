@@ -4,18 +4,62 @@
 
 LOG_MODULE_REGISTER(splitlink_esb_ptx, CONFIG_SPLITLINK_LOG_LEVEL);
 
-static void ptx_alive_thread(void *a, void *b, void *c) {
+static int splitlink_ykb_esb_send(const struct device *dev, uint8_t *data,
+                                  size_t data_len) {
+    if (data_len == 0 || data == NULL) {
+        LOG_ERR("Invalid argument.");
+        return -EINVAL;
+    }
+    if (data_len > CONFIG_ESB_MAX_PAYLOAD_LENGTH - 1) {
+        LOG_ERR("Packet length is too high (%u > %u)", data_len,
+                CONFIG_ESB_MAX_PAYLOAD_LENGTH - 1);
+        return -EINVAL;
+    }
+
+    struct splitlink_data *dev_data = dev->data;
+    if (!dev_data->ready) {
+        LOG_DBG("Not ready");
+        return -EBUSY;
+    }
+    if (!dev_data->connected) {
+        LOG_ERR("Not connected");
+        return -EBUSY;
+    }
+
+    ykb_esb_data_t packet = {
+        .len = data_len + 1,
+    };
+    memcpy(&packet.data[1], data, data_len);
+    packet.data[0] = FLAG_DATA;
+
+    int err = ykb_esb_send(&packet);
+    if (!err) {
+        // Hopefully the packet got sent, we need to delay alive packets.
+        // If alive work is pending then we cancel it and reschedule
+        if (k_work_delayable_is_pending(&dev_data->alive_work.d_work)) {
+            k_work_cancel_delayable(&dev_data->alive_work.d_work);
+            k_work_schedule(&dev_data->alive_work.d_work,
+                            K_MSEC(CONFIG_SPLITLINK_YKB_ESB_PTX_ALIVE_DELAY));
+        }
+    }
+
+    return err;
+}
+
+static void alive_work_handler(struct k_work *work) {
+    struct delayable_device_work *alive_work =
+        CONTAINER_OF(work, struct delayable_device_work, d_work.work);
     ykb_esb_data_t alive_data = {
         .data = {FLAG_ALIVE},
         .len = 1,
     };
-    while (true) {
-        int err = ykb_esb_send(&alive_data);
-        if (err) {
-            LOG_ERR("Unable to send on the ptx alive thread: %d", err);
-        }
-        k_sleep(K_MSEC(CONFIG_SPLITLINK_YKB_ESB_PTX_ALIVE_THREAD_TIME));
+    int err = ykb_esb_send(&alive_data);
+    if (err) {
+        LOG_ERR("Unable to send alive packet: %d", err);
     }
+    // Schedule itself
+    k_work_schedule(&alive_work->d_work,
+                    K_MSEC(CONFIG_SPLITLINK_YKB_ESB_PTX_ALIVE_DELAY));
 }
 
 static void connect_work_handler(struct k_work *work) {
@@ -90,6 +134,7 @@ static void init_work_handler(struct k_work *work) {
     struct delayable_device_work *init_work =
         CONTAINER_OF(work, struct delayable_device_work, d_work.work);
     const struct splitlink_config *cfg = init_work->dev->config;
+    struct splitlink_data *data = init_work->dev->data;
 
     ykb_esb_config_t esb_cfg = {
         .mode = YKB_ESB_MODE_PTX,
@@ -103,13 +148,17 @@ static void init_work_handler(struct k_work *work) {
     int err = ykb_esb_init(&esb_cfg, on_esb_callback);
     if (err) {
         LOG_ERR("Unable to initialize YKB ESB: %d", err);
+    } else {
+        data->ready = true;
+        LOG_INF("Init work handler OK");
     }
 }
 
 static int splitlink_esb_init(const struct device *dev) {
-    const struct splitlink_config *cfg = dev->config;
     struct splitlink_data *data = dev->data;
 
+    data->init_work.dev = dev;
+    data->alive_work.dev = dev;
     data->connect_work.dev = dev;
     data->disconnect_work.dev = dev;
     data->receiving_work.dev = dev;
@@ -124,12 +173,9 @@ static int splitlink_esb_init(const struct device *dev) {
     k_work_init(&data->connect_work.work, connect_work_handler);
     k_work_init(&data->receiving_work.work, receiving_work_handler);
 
-    k_thread_create(&data->alive_thread, data->alive_thread_stack,
-                    CONFIG_SPLITLINK_YKB_ESB_PTX_ALIVE_THREAD_STACK_SIZE,
-                    ptx_alive_thread, NULL, NULL, NULL,
-                    CONFIG_SPLITLINK_YKB_ESB_PTX_ALIVE_THREAD_PRIORITY, 0,
-                    K_NO_WAIT);
-    k_thread_name_set(&data->alive_thread, "PTX alive thread");
+    k_work_init_delayable(&data->alive_work.d_work, alive_work_handler);
+    k_work_schedule(&data->alive_work.d_work,
+                    K_MSEC(CONFIG_SPLITLINK_YKB_ESB_PTX_ALIVE_DELAY));
 
     return 0;
 }
@@ -141,17 +187,12 @@ DEVICE_API(splitlink, splitlink_esb_api) = {
 #define SPLITLINK_YKB_ESB_PTX_DEFINE(inst)                                     \
     BUILD_ASSERT(DT_INST_PROP_LEN(inst, esb_default_address) == 8,             \
                  "esb-default-address should be the length of 8 bytes.");      \
-    K_THREAD_STACK_DEFINE(                                                     \
-        __splitlink_ykb_esb_ptx_alive_thread_stack__##inst,                    \
-        CONFIG_SPLITLINK_YKB_ESB_PTX_ALIVE_THREAD_STACK_SIZE);                 \
     static const struct splitlink_config                                       \
         __splitlink_ykb_esb_ptx_config__##inst = {                             \
             .esb_default_address = DT_INST_PROP(inst, esb_default_address),    \
     };                                                                         \
     static struct splitlink_data __splitlink_ykb_esb_ptx_data__##inst = {      \
         .connected = false,                                                    \
-        .alive_thread_stack =                                                  \
-            __splitlink_ykb_esb_ptx_alive_thread_stack__##inst,                \
     };                                                                         \
     DEVICE_DT_INST_DEFINE(                                                     \
         inst, splitlink_esb_init, NULL, &__splitlink_ykb_esb_ptx_data__##inst, \
