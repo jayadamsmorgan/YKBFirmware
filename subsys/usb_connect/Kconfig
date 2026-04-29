@@ -45,28 +45,58 @@ if USB_CONNECT
         int "Init priority"
         default APPLICATION_INIT_PRIORITY
 
-    HID_DEV_PATH := $(dt_nodelabel_path,hid_vendor)
+    Z_HID_DEV := zephyr,hid-device
 
-    config USB_CONNECT_MAX_VENDOR_IN_REPORT_SIZE
-        int "In report packet size of vendor HID"
-        range 7 $(dt_node_int_prop_int,$(HID_DEV_PATH),in-report-size)
-        default $(dt_node_int_prop_int,$(HID_DEV_PATH),in-report-size)
+    config USB_CONNECT_KBD
+        bool "Enable keyboard HID device over USB"
+        depends on $(dt_nodelabel_enabled_with_compat,hid_kbd,$(Z_HID_DEV))
+        default y
 
-    config USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE
-        int "Out report packet size of vendor HID"
-        range 7 $(dt_node_int_prop_int,$(HID_DEV_PATH),out-report-size)
-        default $(dt_node_int_prop_int,$(HID_DEV_PATH),out-report-size)
+    config USB_CONNECT_MOUSE
+        bool "Enable mouse HID device over USB"
+        depends on $(dt_nodelabel_enabled_with_compat,hid_mouse,$(Z_HID_DEV))
+        default y
+    
+    config USB_CONNECT_VENDOR
+        bool "Enable vendor HID device over USB (YKBConfigurator communication)"
+        depends on $(dt_nodelabel_enabled_with_compat,hid_vendor,$(Z_HID_DEV))
+        default y
 
-    config USB_CONNECT_VENDOR_THREAD_PRIORITY
-        int "Vendor thread priority"
-        default 15
+    if USB_CONNECT_VENDOR
 
-    config USB_CONNECT_VENDOR_THREAD_STACK_SIZE
-        int "Vendor thread stack size"
-        default 1024
+        HID_DEV_PATH := $(dt_nodelabel_path,hid_vendor)
 
-    config USB_CONNECT_VENDOR_MSGQ_SIZE
-        int "Vendor thread ring buffer size"
-        default 8
+        choice USB_CONNECT_VENDOR_PROTOCOL_IMPL
+            prompt "Protocol implementation for vendor HID"
+            default USB_CONNECT_VENDOR_YKB_PROTOCOL
+
+            config USB_CONNECT_VENDOR_YKB_PROTOCOL
+                bool "Use YKB protocol"
+
+        endchoice # USB_CONNECT_VENDOR_PROTOCOL_IMPL
+
+        config USB_CONNECT_MAX_VENDOR_IN_REPORT_SIZE
+            int "In report packet size of vendor HID"
+            range 7 $(dt_node_int_prop_int,$(HID_DEV_PATH),in-report-size)
+            default $(dt_node_int_prop_int,$(HID_DEV_PATH),in-report-size)
+
+        config USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE
+            int "Out report packet size of vendor HID"
+            range 7 $(dt_node_int_prop_int,$(HID_DEV_PATH),out-report-size)
+            default $(dt_node_int_prop_int,$(HID_DEV_PATH),out-report-size)
+
+        config USB_CONNECT_VENDOR_THREAD_PRIORITY
+            int "Vendor thread priority"
+            default 15
+
+        config USB_CONNECT_VENDOR_THREAD_STACK_SIZE
+            int "Vendor thread stack size"
+            default 1024
+
+        config USB_CONNECT_VENDOR_MSGQ_SIZE
+            int "Vendor thread ring buffer size"
+            default 8
+
+    endif # USB_CONNECT_VENDOR
 
 endif # USB_CONNECT

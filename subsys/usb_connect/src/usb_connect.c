@@ -48,18 +48,24 @@ static void msg_cb(struct usbd_context *const usbd_ctx,
 static int usb_connect_init(void) {
     int err;
 
+#if CONFIG_USB_CONNECT_KBD
     err = usb_connect_init_kbd_hid();
     if (err) {
         return err;
     }
+#endif // CONFIG_USB_CONNECT_KBD
+#if CONFIG_USB_CONNECT_MOUSE
     err = usb_connect_init_mouse_hid();
     if (err) {
         return err;
     }
+#endif // CONFIG_USB_CONNECT_MOUSE
+#if CONFIG_USB_CONNECT_VENDOR
     err = usb_connect_init_vendor_hid();
     if (err) {
         return err;
     }
+#endif // CONFIG_USB_CONNECT_VENDOR
 
     usbd = usbd_init_device(msg_cb);
     if (usbd == NULL) {

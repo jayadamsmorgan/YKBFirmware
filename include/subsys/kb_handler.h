@@ -5,6 +5,8 @@
 
 #include <zephyr/toolchain.h>
 
+void kb_handler_get_values(uint16_t *values, uint16_t count);
+
 int kb_handler_get_default_thresholds(uint16_t *buffer);
 
 int kb_handler_get_default_keymap_layer1(uint8_t *buffer);

@@ -29,12 +29,10 @@ static const uint16_t y_coordinates[] = Z_USER_PROP(ykb_backlight_ys);
 BUILD_ASSERT(ARRAY_SIZE(y_coordinates) == TOTAL_KEY_COUNT,
              "ykb-backlight-ys length should be the same as total key count");
 
-#define MAX_ABS_BRIGHTNESS_PERCENT                                             \
-    Z_USER_PROP_OR(ykb_backlight_max_abs_brightness, 20)
 static const double max_absolute_brightness =
-    ((double)MAX_ABS_BRIGHTNESS_PERCENT) / 100.0;
-BUILD_ASSERT(MAX_ABS_BRIGHTNESS_PERCENT >= 1 &&
-                 MAX_ABS_BRIGHTNESS_PERCENT <= 100,
+    ((double)YKB_BACKLIGHT_MAX_ABS_BRIGHTNESS_PERCENT) / 100.0;
+BUILD_ASSERT(YKB_BACKLIGHT_MAX_ABS_BRIGHTNESS_PERCENT >= 1 &&
+                 YKB_BACKLIGHT_MAX_ABS_BRIGHTNESS_PERCENT <= 100,
              "ykb-backlight-max-abs-brightness should be in the range [1-100]");
 
 static const uint16_t idx_offset = Z_USER_PROP_OR(ykb_backlight_idx_offset, 0);

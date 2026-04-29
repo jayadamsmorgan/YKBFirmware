@@ -1,5 +1,7 @@
 #include "hid_devices.h"
+#include "vendor_hid_protocol.h"
 
+#include <subsys/kb_handler.h>
 #include <subsys/usb_connect.h>
 
 #include <zephyr/logging/log.h>
@@ -43,32 +45,12 @@ static const uint8_t hid_vendor_report_desc[] = {
     HID_END_COLLECTION,
 };
 
-#define SETTINGS_REPORT_ID 0
-#define FEATURES_REPORT_ID 1
-#define VALUES_REPORT_ID 2
-
 static const struct device *hid_vendor_dev =
     DEVICE_DT_GET(DT_NODELABEL(hid_vendor));
 
 static atomic_bool __ready;
 static uint32_t __duration;
 static atomic_bool boot_mode;
-
-K_THREAD_STACK_DEFINE(vendor_hid_thread_stack,
-                      CONFIG_USB_CONNECT_VENDOR_THREAD_STACK_SIZE);
-
-K_MSGQ_DEFINE(vendor_hid_msgq,
-              sizeof(uint8_t[CONFIG_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE]),
-              CONFIG_USB_CONNECT_VENDOR_MSGQ_SIZE, 4);
-
-static void vendor_hid_thread(void *a, void *b, void *c) {
-
-    uint8_t buffer[CONFIG_USB_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE];
-
-    while (true) {
-        k_msgq_get(&vendor_hid_msgq, buffer, K_FOREVER);
-    }
-}
 
 static void iface_ready(const struct device *dev, const bool ready) {
     LOG_INF("HID device %s interface is %s", dev->name,
@@ -100,14 +82,7 @@ static int set_report(const struct device *dev, const uint8_t type,
         return -ENOTSUP;
     }
 
-    if (buf[0] != SETTINGS_REPORT_ID) {
-        LOG_WRN("Features set is not possible.");
-        return -ENOTSUP;
-    }
-
-    int err = k_msgq_put(&vendor_hid_msgq, buf, K_NO_WAIT);
-
-    return err;
+    return vendor_hid_protocol_parse(buf, len);
 }
 
 static void set_idle(const struct device *dev, const uint8_t id,
@@ -157,4 +132,32 @@ int usb_connect_init_vendor_hid(void) {
     }
 
     return 0;
+}
+
+// vendor_hid_protocol
+
+static FEATURES_DEFINE(features);
+static kb_settings_t settings_snap;
+
+device_features *vendor_hid_protocol_get_features() { return &features; }
+
+void vendor_hid_protocol_get_values(uint16_t *values, uint16_t count) {
+    kb_handler_get_values(values, count);
+}
+
+kb_settings_t *vendor_hid_protocol_get_settings() {
+    int err = kb_settings_get(&settings_snap);
+    if (err) {
+        LOG_ERR("kb_settings_get: %d", err);
+        return NULL;
+    }
+    return &settings_snap;
+}
+
+int vendor_hid_protocol_set_settings(kb_settings_t *settings) {
+    int err = kb_settings_apply(settings);
+    if (err) {
+        LOG_ERR("kb_settings_apply: %d", err);
+    }
+    return err;
 }

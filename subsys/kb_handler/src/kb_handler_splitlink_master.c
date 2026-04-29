@@ -71,6 +71,8 @@ struct kbh_runtime_state {
 K_MSGQ_DEFINE(kbh_sm_msgq, sizeof(struct kbh_thread_msg),
               CONFIG_KB_HANDLER_MSGQ_SIZE, 4);
 
+static uint16_t values[TOTAL_KEY_COUNT];
+
 static void send_kb_report(hid_kb_report_t *report) {
     if (IS_ENABLED(CONFIG_LIB_USB_CONNECT)) {
         usb_connect_handle_wakeup();
@@ -472,10 +474,6 @@ static void handle_slave_values(struct kbh_runtime_state *st,
 }
 
 static void kb_handler_thread(void *a, void *b, void *c) {
-    ARG_UNUSED(a);
-    ARG_UNUSED(b);
-    ARG_UNUSED(c);
-
     struct kbh_thread_msg msg;
     struct kbh_runtime_state st = {
         .settings = &settings_snapshot,
@@ -567,6 +565,8 @@ static inline void kb_handler_sm_value_handler(uint16_t key_index,
         .value = value,
     };
 
+    values[key_index] = value;
+
     k_msgq_put(&kbh_sm_msgq, &data, K_NO_WAIT);
 }
 
@@ -575,7 +575,7 @@ KSCAN_CB_DEFINE(kbh_sm) = {
     .on_new_value = kb_handler_sm_value_handler,
 };
 
-void splitlink_handler_values_received(uint16_t *values, uint16_t count) {
+void splitlink_handler_values_received(uint16_t *slave_values, uint16_t count) {
     if (count != KEY_COUNT_SLAVE) {
         LOG_ERR("Slave values size mismatch");
         return;
@@ -583,7 +583,10 @@ void splitlink_handler_values_received(uint16_t *values, uint16_t count) {
     struct kbh_thread_msg data = {
         .type = KBH_THREAD_MSG_SLAVE_VALUES,
     };
-    memcpy(data.slave_values, values, sizeof(uint16_t) * count);
+    memcpy(data.slave_values, slave_values, sizeof(uint16_t) * count);
+
+    memcpy(&values[KEY_COUNT], slave_values, sizeof(uint16_t) * count);
+
     k_msgq_put(&kbh_sm_msgq, &data, K_NO_WAIT);
 }
 
@@ -792,3 +795,11 @@ static int kb_handler_sm_init(void) {
 }
 
 SYS_INIT(kb_handler_sm_init, POST_KERNEL, CONFIG_KB_HANDLER_INIT_PRIORITY);
+
+void kb_handler_get_values(uint16_t *_values, uint16_t count) {
+    if (!_values || count == 0) {
+        return;
+    }
+
+    memcpy(_values, values, sizeof(uint16_t) * count);
+}
