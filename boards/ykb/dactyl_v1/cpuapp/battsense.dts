@@ -10,19 +10,17 @@
 
 	charger: charger {
 		compatible = "ti,bq25185";
-		stat1-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>;
-		stat2-gpios = <&gpio0 18 GPIO_ACTIVE_LOW>;
-		vin-present-gpios = <&gpio1 3 GPIO_ACTIVE_HIGH>;
+		stat1-gpios = <&gpio0 17 GPIO_ACTIVE_HIGH>;
+		stat2-gpios = <&gpio0 18 GPIO_ACTIVE_HIGH>;
+		vin-present-gpios = <&gpio1 3 GPIO_ACTIVE_LOW>;
 		status = "okay";
 	};
 };
 
 &i2c1 {
-	fuel_gauge: fuel_gauge@16 {
-		reg = <0x16>;
-		compatible = "onnn,lc709203f";
-		initial-rsoc;
-		apa = "3000mAh";
-		battery-profile = <0x1>;
+	fuel_gauge: fuel_gauge@36 {
+		compatible = "maxim,max17048";
+		status = "okay";
+		reg = <0x36>;
 	};
 };
