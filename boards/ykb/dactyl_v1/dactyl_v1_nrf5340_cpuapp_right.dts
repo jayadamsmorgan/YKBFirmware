@@ -6,10 +6,6 @@
 	model = "YKB Dactyl V1 Right board";
 	compatible = "ykb,dactyl-v1-nrf5340-cpuapp-right";
 
-	zephyr,user {
-		ykb-backlight-idx-offset = <30>;
-	};
-
 	chosen {
 		zephyr,sram = &sram0_image;
 		zephyr,flash = &flash0;

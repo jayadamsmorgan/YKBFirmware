@@ -1,9 +1,1 @@
 include: base.yaml
-
-properties:
-
-  esb-default-address:
-    type: uint8-array
-    required: true
-    description: >
-      Default address to initiate first connection with between ESB PTX/PRX devices.

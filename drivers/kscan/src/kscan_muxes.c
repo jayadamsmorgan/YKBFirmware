@@ -6,6 +6,8 @@
 
 LOG_MODULE_REGISTER(kscan_muxes, CONFIG_KSCAN_LOG_LEVEL);
 
+#define KSCAN_THRESHOLD_INACTIVE UINT16_MAX
+
 struct kscan_muxes_config {
     const struct adc_dt_spec *channels;
     const uint16_t channels_count;
@@ -18,7 +20,6 @@ struct kscan_muxes_config {
 
     const uint32_t settle_us;
 
-    const uint16_t *default_thresholds;
 };
 
 struct kscan_muxes_data {
@@ -170,18 +171,6 @@ static int kscan_muxes_get_thresholds(const struct device *dev,
     return 0;
 }
 
-static int kscan_muxes_get_default_thresholds(const struct device *dev,
-                                              uint16_t *thresholds) {
-    if (!thresholds) {
-        return -EINVAL;
-    }
-    const struct kscan_muxes_config *cfg = dev->config;
-    memcpy(thresholds, cfg->default_thresholds,
-           cfg->key_amount * sizeof(uint16_t));
-
-    return 0;
-}
-
 static int kscan_muxes_get_key_amount(const struct device *dev) {
     const struct kscan_muxes_config *cfg = dev->config;
     return cfg->key_amount;
@@ -206,7 +195,6 @@ static int kscan_muxes_get_values(const struct device *dev, uint16_t *values) {
 DEVICE_API(kscan, kscan_muxes_api) = {
     .get_thresholds = kscan_muxes_get_thresholds,
     .set_thresholds = kscan_muxes_set_thresholds,
-    .get_default_thresholds = kscan_muxes_get_default_thresholds,
 
     .get_key_amount = kscan_muxes_get_key_amount,
     .get_idx_offset = kscan_muxes_get_idx_offset,
@@ -261,6 +249,10 @@ static int kscan_muxes_init(const struct device *dev) {
 
     LOG_INF("KScan (MUXes) ready: %u MUXes", cfg->muxes_count);
 
+    for (uint16_t i = 0; i < cfg->key_amount; ++i) {
+        data->thresholds[i] = KSCAN_THRESHOLD_INACTIVE;
+    }
+
     for (uint16_t i = 0; i < cfg->muxes_count; ++i) {
         k_thread_create(&data->threads[i], data->stacks[i],
                         CONFIG_KSCAN_MUXES_THREAD_STACK_SIZE,
@@ -299,23 +291,9 @@ static int kscan_muxes_init(const struct device *dev) {
     K_THREAD_STACK_DEFINE(THREAD_STACK_NAME(node_id, idx),                     \
                           CONFIG_KSCAN_MUXES_THREAD_STACK_SIZE);
 
-#define ASSERT_THRESHOLDS_MATCH_KEYS(inst)                                     \
-    BUILD_ASSERT((uint16_t)DT_INST_PROP_LEN(inst, default_thresholds) ==       \
-                     (uint16_t)KSCAN_MUXES_CHANNELS_SUM(inst),                 \
-                 "default-thresholds length must equal key_amount");
-
 #define ASSERT_SETTLE_TIME_IS_GREATER_THAN_0(inst)                             \
     BUILD_ASSERT((uint32_t)DT_INST_PROP_LEN(inst, settle_time) > 0,            \
                  "settle-time must be greater than 0");
-
-#define ASSERT_THRESH_RANGE_ELEM(node_id, prop, idx)                           \
-    BUILD_ASSERT(DT_PROP_BY_IDX(node_id, prop, idx) >= 1 &&                    \
-                     DT_PROP_BY_IDX(node_id, prop, idx) <= 1023,               \
-                 "default_thresholds values must be 1..1023");
-
-#define ASSERT_ALL_THRESHOLDS_IN_RANGE(inst)                                   \
-    DT_INST_FOREACH_PROP_ELEM(inst, default_thresholds,                        \
-                              ASSERT_THRESH_RANGE_ELEM)
 
 #define KSCAN_MUXES_DEFINE(inst)                                               \
     BUILD_ASSERT(DT_INST_PROP_LEN(inst, io_channels) ==                        \
@@ -328,12 +306,8 @@ static int kscan_muxes_init(const struct device *dev) {
     static const struct device *__kscan_muxes_muxes__##inst[] = {              \
         DT_INST_FOREACH_PROP_ELEM(inst, muxes, MUX_DEV_AND_COMMA)};            \
                                                                                \
-    static const uint16_t __kscan_muxes_default_thresholds__##inst[] = {       \
-        DT_INST_FOREACH_PROP_ELEM(inst, default_thresholds,                    \
-                                  U16_PROP_ELEM_AND_COMMA)};                   \
-    static uint16_t __kscan_muxes_data_thresholds__##inst[] = {                \
-        DT_INST_FOREACH_PROP_ELEM(inst, default_thresholds,                    \
-                                  U16_PROP_ELEM_AND_COMMA)};                   \
+    static uint16_t                                                            \
+        __kscan_muxes_data_thresholds__##inst[KSCAN_MUXES_CHANNELS_SUM(inst)] = {0}; \
                                                                                \
     DT_INST_FOREACH_PROP_ELEM(inst, muxes, THREAD_STACK_DEFINE_IDX);           \
                                                                                \
@@ -361,8 +335,6 @@ static int kscan_muxes_init(const struct device *dev) {
         .key_amount = (uint16_t)(KSCAN_MUXES_CHANNELS_SUM(inst)),              \
                                                                                \
         .settle_us = DT_INST_PROP(inst, settle_us),                            \
-                                                                               \
-        .default_thresholds = __kscan_muxes_default_thresholds__##inst,        \
     };                                                                         \
     static struct kscan_muxes_data __kscan_muxes_data__##inst = {              \
         .thresholds = __kscan_muxes_data_thresholds__##inst,                   \
@@ -372,9 +344,6 @@ static int kscan_muxes_init(const struct device *dev) {
         .stacks = __kscan_muxes_stacks__##inst,                                \
         .chan_idxs = __kscan_muxes_chan_idxs__##inst,                          \
     };                                                                         \
-                                                                               \
-    ASSERT_THRESHOLDS_MATCH_KEYS(inst);                                        \
-    ASSERT_ALL_THRESHOLDS_IN_RANGE(inst);                                      \
                                                                                \
     DEVICE_DT_INST_DEFINE(                                                     \
         inst, kscan_muxes_init, NULL, &__kscan_muxes_data__##inst,             \

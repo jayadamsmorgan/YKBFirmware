@@ -137,10 +137,15 @@ DEVICE_API(splitlink, splitlink_esb_api) = {
 };
 
 #define SPLITLINK_DEFINE(inst)                                                 \
-    BUILD_ASSERT(DT_INST_PROP_LEN(inst, esb_default_address) == 8,             \
-                 "esb-default-address should be the length of 8 bytes.");      \
     static const struct splitlink_config __splitlink_esb_config__##inst = {    \
-        .esb_default_address = DT_INST_PROP(inst, esb_default_address),        \
+        .esb_default_address = {generated_splitlink_esb_address[0],            \
+                                generated_splitlink_esb_address[1],            \
+                                generated_splitlink_esb_address[2],            \
+                                generated_splitlink_esb_address[3],            \
+                                generated_splitlink_esb_address[4],            \
+                                generated_splitlink_esb_address[5],            \
+                                generated_splitlink_esb_address[6],            \
+                                generated_splitlink_esb_address[7]},           \
     };                                                                         \
     static struct splitlink_data __splitlink_esb_data__##inst = {              \
         .connected = false,                                                    \

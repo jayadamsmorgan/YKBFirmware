@@ -22,7 +22,6 @@
 	};
 
 	splitlink: splitlink {
-		esb-default-address = [E7E7E7E7C2C2C2C2];
 	};
 
 	buttons {

@@ -10,35 +10,30 @@
 
 #include <math.h>
 #include <zephyr/drivers/led_strip.h>
+#include <zephyr/sys/util.h>
 
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(ykb_backlight, CONFIG_YKB_BACKLIGHT_LOG_LEVEL);
 
 static const struct device *led_strip = Z_USER_DEV(ykb_backlight);
+static const ykb_backlight_layout_t *layout;
 
-static const uint16_t led_map[] = Z_USER_PROP(ykb_backlight_maps);
-BUILD_ASSERT(ARRAY_SIZE(led_map) == TOTAL_KEY_COUNT,
-             "ykb-backlight-maps length should be the same as total key count");
-
-static const uint16_t x_coordinates[] = Z_USER_PROP(ykb_backlight_xs);
-BUILD_ASSERT(ARRAY_SIZE(x_coordinates) == TOTAL_KEY_COUNT,
-             "ykb-backlight-xs length should be the same as total key count");
-static const uint16_t y_coordinates[] = Z_USER_PROP(ykb_backlight_ys);
-BUILD_ASSERT(ARRAY_SIZE(y_coordinates) == TOTAL_KEY_COUNT,
-             "ykb-backlight-ys length should be the same as total key count");
+static const size_t led_count =
+    DT_PROP(Z_USER_PROP(ykb_backlight), chain_length);
+static const size_t local_key_capacity = CONFIG_KB_SETTINGS_KEY_COUNT;
 
 static const double max_absolute_brightness =
     ((double)YKB_BACKLIGHT_MAX_ABS_BRIGHTNESS_PERCENT) / 100.0;
 BUILD_ASSERT(YKB_BACKLIGHT_MAX_ABS_BRIGHTNESS_PERCENT >= 1 &&
                  YKB_BACKLIGHT_MAX_ABS_BRIGHTNESS_PERCENT <= 100,
              "ykb-backlight-max-abs-brightness should be in the range [1-100]");
-
-static const uint16_t idx_offset = Z_USER_PROP_OR(ykb_backlight_idx_offset, 0);
+BUILD_ASSERT(CONFIG_KB_SETTINGS_KEY_COUNT > 0,
+             "KB_SETTINGS_KEY_COUNT should be greater than zero");
 
 static struct k_thread ykb_backlight_thread;
-K_THREAD_STACK_DEFINE(ykb_backlight_thread_stack,
-                      CONFIG_YKB_BL_THREAD_STACK_SIZE);
+static K_THREAD_STACK_DEFINE(ykb_backlight_thread_stack,
+                             CONFIG_YKB_BL_THREAD_STACK_SIZE);
 
 static K_MUTEX_DEFINE(ykb_bl_mut);
 
@@ -49,20 +44,15 @@ static bool on = true;
 
 static bool script_loaded = false;
 
-#if CONFIG_KB_HANDLER_SPLITLINK_MASTER
-#define KEY_COUNT CONFIG_KB_SETTINGS_KEY_COUNT
-#endif // CONFIG_KB_HANDLER_SPLITLINK_MASTER
-#if CONFIG_KB_HANDLER_SPLITLINK_SLAVE
-#define KEY_COUNT CONFIG_KB_SETTINGS_KEY_COUNT_SLAVE
-#endif // CONFIG_KB_HANDLER_SPLITLINK_SLAVE
-
-static uint16_t press[KEY_COUNT] = {0};
-static bool pressed[KEY_COUNT] = {0};
+static uint16_t press[CONFIG_KB_SETTINGS_KEY_COUNT] = {0};
+static bool pressed[CONFIG_KB_SETTINGS_KEY_COUNT] = {0};
 
 static uint32_t thread_sleep_time = DEFAULT_THREAD_SLEEP_MS;
 
-static struct led_rgb _buffer1[KEY_COUNT] = {0};
-static struct led_rgb _buffer2[KEY_COUNT] = {0};
+static struct led_rgb
+    _buffer1[DT_PROP(Z_USER_PROP(ykb_backlight), chain_length)] = {0};
+static struct led_rgb
+    _buffer2[DT_PROP(Z_USER_PROP(ykb_backlight), chain_length)] = {0};
 static struct led_rgb *buf_front = _buffer1;
 static struct led_rgb *buf_back = _buffer2;
 
@@ -73,13 +63,12 @@ static inline uint8_t apply_brightness(uint8_t color) {
 }
 
 static inline void clear_state() {
-    memset(buf_back, 0, sizeof(struct led_rgb) * KEY_COUNT);
+    memset(buf_back, 0, sizeof(struct led_rgb) * led_count);
     struct led_rgb *tmp = buf_front;
     buf_front = buf_back;
     buf_back = tmp;
 
-    int err = led_strip_update_rgb(led_strip, buf_front,
-                                   CONFIG_KB_SETTINGS_KEY_COUNT);
+    int err = led_strip_update_rgb(led_strip, buf_front, led_count);
     if (err) {
         LOG_ERR("clear_state: led_strip_update_rgb: %d", err);
         return;
@@ -118,10 +107,10 @@ static void ykb_backlight_thread_handler(void *a, void *b, void *c) {
             goto cont;
         }
 
-        for (uint16_t i = 0; i < KEY_COUNT; ++i) {
+        for (uint16_t i = 0; i < layout->key_count; ++i) {
             lumi_vm_output output;
-            inputs.x = x_coordinates[i + idx_offset];
-            inputs.y = y_coordinates[i + idx_offset];
+            inputs.x = layout->x_coordinates[i];
+            inputs.y = layout->y_coordinates[i];
             inputs.pressed = pressed[i];
             inputs.press = press[i];
             err = lumiscript_run_render(&inputs, i, &output);
@@ -129,16 +118,17 @@ static void ykb_backlight_thread_handler(void *a, void *b, void *c) {
                 LOG_ERR("Lumiscript render: %d", err);
                 goto cont;
             }
-            buf_back[led_map[i]].r =
+            buf_back[layout->led_map[i]].r =
                 apply_brightness((output.color >> 16) & 0xFF);
-            buf_back[led_map[i]].g =
+            buf_back[layout->led_map[i]].g =
                 apply_brightness((output.color >> 8) & 0xFF);
-            buf_back[led_map[i]].b = apply_brightness(output.color & 0xFF);
+            buf_back[layout->led_map[i]].b =
+                apply_brightness(output.color & 0xFF);
         }
         struct led_rgb *tmp = buf_front;
         buf_front = buf_back;
         buf_back = tmp;
-        err = led_strip_update_rgb(led_strip, buf_front, KEY_COUNT);
+        err = led_strip_update_rgb(led_strip, buf_front, led_count);
         if (err) {
             LOG_ERR("led_strip_update_rgb: %d", err);
         }
@@ -151,12 +141,20 @@ static void ykb_backlight_thread_handler(void *a, void *b, void *c) {
 }
 
 static void kscan_on_event(uint16_t index, bool value) {
+    if (!layout || index >= layout->key_count) {
+        return;
+    }
+
     k_mutex_lock(&ykb_bl_mut, K_FOREVER);
     pressed[index] = value;
     k_mutex_unlock(&ykb_bl_mut);
 }
 
 static void kscan_on_value_changed(uint16_t index, uint16_t value) {
+    if (!layout || index >= layout->key_count) {
+        return;
+    }
+
     k_mutex_lock(&ykb_bl_mut, K_FOREVER);
     press[index] = value;
     k_mutex_unlock(&ykb_bl_mut);
@@ -174,6 +172,7 @@ static void on_settings_update(kb_settings_t *settings) {
     k_mutex_lock(&ykb_bl_mut, K_FOREVER);
 
     if (!init_success) {
+        k_mutex_unlock(&ykb_bl_mut);
         return;
     }
 
@@ -192,12 +191,7 @@ static void on_settings_update(kb_settings_t *settings) {
         goto defer;
     }
     uint32_t start_offset = settings->backlight.offsets[cur_idx];
-    uint32_t end_offset;
-    if (cur_idx == KB_SETTINGS_MAX_SCRIPTS_POSSIBLE - 1) {
-        end_offset = CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_STORAGE_LEN - 1;
-    } else {
-        end_offset = settings->backlight.offsets[cur_idx + 1];
-    }
+    uint32_t end_offset = settings->backlight.offsets[cur_idx + 1];
 
     char *script_name = settings->backlight.names[cur_idx];
     LOG_INF("Loading lumiscript '%s'", script_name);
@@ -232,14 +226,38 @@ static int ykb_backlight_init(void) {
         k_mutex_unlock(&ykb_bl_mut);
         return -1;
     }
-    for (uint16_t i = 0; i < TOTAL_KEY_COUNT; ++i) {
-        if (x_coordinates[i] > 1000) {
+    layout = ykb_backlight_get_layout();
+    if (!layout) {
+        LOG_ERR("Backlight layout is not available");
+        k_mutex_unlock(&ykb_bl_mut);
+        return -1;
+    }
+    if (!layout->led_map || !layout->x_coordinates || !layout->y_coordinates) {
+        LOG_ERR("Backlight layout is incomplete");
+        k_mutex_unlock(&ykb_bl_mut);
+        return -1;
+    }
+    if (layout->key_count != local_key_capacity) {
+        LOG_ERR("Backlight layout key count mismatch (%u != %u)",
+                (unsigned int)layout->key_count,
+                (unsigned int)local_key_capacity);
+        k_mutex_unlock(&ykb_bl_mut);
+        return -1;
+    }
+
+    for (uint16_t i = 0; i < layout->key_count; ++i) {
+        if (layout->x_coordinates[i] > 1000) {
             LOG_ERR("X coordinate %d is not in the range of [0-1000]", i);
             k_mutex_unlock(&ykb_bl_mut);
             return -1;
         }
-        if (y_coordinates[i] > 1000) {
+        if (layout->y_coordinates[i] > 1000) {
             LOG_ERR("Y coordinate %d is not in the range of [0-1000]", i);
+            k_mutex_unlock(&ykb_bl_mut);
+            return -1;
+        }
+        if (layout->led_map[i] >= led_count) {
+            LOG_ERR("LED map index %d points past chain length", i);
             k_mutex_unlock(&ykb_bl_mut);
             return -1;
         }

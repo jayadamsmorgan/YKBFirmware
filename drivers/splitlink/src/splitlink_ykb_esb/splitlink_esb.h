@@ -10,6 +10,8 @@
 
 #include <lib/ykb_esb.h>
 
+#include "generated_splitlink_address.h"
+
 struct splitlink_config {
     const uint8_t esb_default_address[8];
 };

@@ -5,6 +5,9 @@ zephyr_library_sources(
     src/ykb_backlight.c
 )
 
+include(${APP_DIR}/../cmake/ykb_board_assets.cmake)
+ykb_resolve_board_asset(BACKLIGHT_LAYOUT_FILE resources/backlight_layout.txt REQUIRED)
+
 # Default settings resources generation:
 
 set(BACKLIGHT_RESOURCE_DIR ${APP_DIR}/../resources/lumiscript)
@@ -33,10 +36,12 @@ add_custom_command(
         ${APP_DIR}/../scripts/gen_ykb_backlight_resources.py
         --out-c ${GENERATED_BACKLIGHT_C}
         --out-h ${GENERATED_BACKLIGHT_H}
+        --layout ${BACKLIGHT_LAYOUT_FILE}
         --symbol default_backlight_settings
         ${LUMISCRIPT_BC_FILES}
     DEPENDS
         ${APP_DIR}/../scripts/gen_ykb_backlight_resources.py
+        ${BACKLIGHT_LAYOUT_FILE}
         ${LUMISCRIPT_BC_FILES}
     VERBATIM
 )

@@ -1,0 +1,61 @@
+function(ykb_resolve_board_asset out_var asset_name)
+    set(options REQUIRED)
+    cmake_parse_arguments(YKB_ASSET "${options}" "" "" ${ARGN})
+
+    if(NOT DEFINED BOARD_DIR)
+        message(FATAL_ERROR "BOARD_DIR is not defined")
+    endif()
+
+    if(NOT DEFINED BOARD)
+        message(FATAL_ERROR "BOARD is not defined")
+    endif()
+
+    if(DEFINED BOARD_QUALIFIERS AND NOT "${BOARD_QUALIFIERS}" STREQUAL "")
+        string(REPLACE "/" ";" _board_parts "${BOARD_QUALIFIERS}")
+    else()
+        string(REPLACE "/" ";" _board_parts "${BOARD}")
+        list(LENGTH _board_parts _board_parts_len)
+        if(_board_parts_len GREATER 1)
+            list(POP_FRONT _board_parts)
+        else()
+            set(_board_parts)
+        endif()
+    endif()
+
+    set(_candidates)
+    list(LENGTH _board_parts _board_parts_len)
+
+    if(_board_parts_len GREATER 0)
+        math(EXPR _max_start "${_board_parts_len} - 1")
+        foreach(_start RANGE 0 ${_max_start})
+            list(SUBLIST _board_parts ${_start} -1 _subparts)
+            list(LENGTH _subparts _subparts_len)
+            math(EXPR _max_trim "${_subparts_len} - 1")
+            foreach(_trim RANGE 0 ${_max_trim})
+                math(EXPR _keep_len "${_subparts_len} - ${_trim}")
+                list(SUBLIST _subparts 0 ${_keep_len} _candidate_parts)
+                string(REPLACE ";" "/" _candidate_rel "${_candidate_parts}")
+                list(APPEND _candidates "${BOARD_DIR}/${_candidate_rel}/${asset_name}")
+            endforeach()
+        endforeach()
+    endif()
+
+    list(APPEND _candidates "${BOARD_DIR}/${asset_name}")
+    list(REMOVE_DUPLICATES _candidates)
+
+    foreach(_candidate IN LISTS _candidates)
+        if(EXISTS "${_candidate}")
+            set(${out_var} "${_candidate}" PARENT_SCOPE)
+            return()
+        endif()
+    endforeach()
+
+    if(YKB_ASSET_REQUIRED)
+        string(REPLACE ";" "\n  " _pretty_candidates "${_candidates}")
+        message(FATAL_ERROR
+            "Unable to resolve board asset '${asset_name}'. Looked in:\n  ${_pretty_candidates}"
+        )
+    endif()
+
+    unset(${out_var} PARENT_SCOPE)
+endfunction()

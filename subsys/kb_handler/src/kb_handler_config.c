@@ -1,6 +1,6 @@
 #include "kb_handler_internal.h"
 
-#include <dt-bindings/kb-handler/kb-key-codes.h>
+#include "generated_kb_handler_layout.h"
 
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
@@ -15,32 +15,12 @@ LOG_MODULE_DECLARE(kb_handler);
 static const struct device *const kscans[] = {DT_FOREACH_PROP_ELEM(
     DT_PATH(zephyr_user), kb_handler_kscans, KSCAN_DEV_AND_COMMA)};
 
-static const uint8_t default_keymap_layer1[TOTAL_KEY_COUNT] =
-    Z_USER_PROP(kb_handler_default_keymap_layer1);
-static const uint8_t default_keymap_layer2[TOTAL_KEY_COUNT] =
-    Z_USER_PROP_OR(kb_handler_default_keymap_layer2, {0});
-static const uint8_t default_keymap_layer3[TOTAL_KEY_COUNT] =
-    Z_USER_PROP_OR(kb_handler_defualt_keymap_layer3, {0});
-
-static const kb_mouseemu_settings_t default_mouseemu = {
-    .enabled = Z_USER_HAS_PROP(mouseemu_enabled),
-    .direction_mode = Z_USER_HAS_PROP(mouseemu_8way),
-    .move_keys = Z_USER_PROP_OR(mouseemu_move_keys, {0}),
-    .move_keys_count = Z_USER_PROP_LEN_OR(mouseemu_move_keys, 0),
-    .button_keys = Z_USER_PROP_OR(mouseemu_button_keys, {0}),
-    .button_keys_count = Z_USER_PROP_LEN_OR(mouseemu_button_keys, 0),
-    .scroll_keys = Z_USER_PROP_OR(mouseemu_scroll_keys, {0}),
-    .scroll_keys_count = Z_USER_PROP_LEN_OR(mouseemu_scroll_keys, 0),
-    .move_x_k = (double)Z_USER_PROP_OR(mouseemu_move_x_k_mul, 1) /
-                Z_USER_PROP_OR(mouseemu_move_x_k_div, 1),
-    .move_y_k = (double)Z_USER_PROP_OR(mouseemu_move_y_k_mul, 1) /
-                Z_USER_PROP_OR(mouseemu_move_y_k_div, 1),
-    .scroll_k = (double)Z_USER_PROP_OR(mouseemu_scroll_k_mul, 1) /
-                Z_USER_PROP_OR(mouseemu_scroll_k_div, 1),
-    .move_keys_deadzones = Z_USER_PROP_OR(mouseemu_move_keys_deadzones, {0}),
-    .scroll_keys_deadzones =
-        Z_USER_PROP_OR(mouseemu_scroll_keys_deadzones, {0}),
-};
+BUILD_ASSERT(KEY_COUNT + KEY_COUNT_SLAVE == TOTAL_KEY_COUNT,
+             "kb_handler key counts should sum to TOTAL_KEY_COUNT");
+BUILD_ASSERT(TOTAL_KEY_COUNT > 0,
+             "TOTAL_KEY_COUNT should be greater than zero");
+BUILD_ASSERT(GENERATED_KB_HANDLER_KEY_COUNT == TOTAL_KEY_COUNT,
+             "generated kb_handler layout should match TOTAL_KEY_COUNT");
 
 size_t kb_handler_kscan_count(void) { return ARRAY_SIZE(kscans); }
 
@@ -72,13 +52,13 @@ int kb_handler_validate_kscan_topology(uint16_t expected_key_count) {
         int key_amount = kscan_get_key_amount(kscans[i]);
 
         if (offset < 0) {
-            LOG_ERR("Unable to get idx offset for KScan %u (err %d)", (unsigned)i,
-                    offset);
+            LOG_ERR("Unable to get idx offset for KScan %u (err %d)",
+                    (unsigned)i, offset);
             return offset;
         }
         if (key_amount < 0) {
-            LOG_ERR("Unable to get key amount for KScan %u (err %d)", (unsigned)i,
-                    key_amount);
+            LOG_ERR("Unable to get key amount for KScan %u (err %d)",
+                    (unsigned)i, key_amount);
             return key_amount;
         }
 
@@ -113,7 +93,8 @@ int kb_handler_validate_kscan_topology(uint16_t expected_key_count) {
 
 int kb_handler_get_default_keymap_layer1(uint8_t *buffer) {
     if (buffer) {
-        memcpy(buffer, default_keymap_layer1, sizeof(default_keymap_layer1));
+        memcpy(buffer, generated_kb_handler_default_keymap_layer1,
+               sizeof(generated_kb_handler_default_keymap_layer1));
     }
 
     return 0;
@@ -121,7 +102,8 @@ int kb_handler_get_default_keymap_layer1(uint8_t *buffer) {
 
 int kb_handler_get_default_keymap_layer2(uint8_t *buffer) {
     if (buffer) {
-        memcpy(buffer, default_keymap_layer2, sizeof(default_keymap_layer2));
+        memcpy(buffer, generated_kb_handler_default_keymap_layer2,
+               sizeof(generated_kb_handler_default_keymap_layer2));
     }
 
     return 0;
@@ -129,7 +111,8 @@ int kb_handler_get_default_keymap_layer2(uint8_t *buffer) {
 
 int kb_handler_get_default_keymap_layer3(uint8_t *buffer) {
     if (buffer) {
-        memcpy(buffer, default_keymap_layer3, sizeof(default_keymap_layer3));
+        memcpy(buffer, generated_kb_handler_default_keymap_layer3,
+               sizeof(generated_kb_handler_default_keymap_layer3));
     }
 
     return 0;
@@ -137,40 +120,17 @@ int kb_handler_get_default_keymap_layer3(uint8_t *buffer) {
 
 int kb_handler_get_default_mouseemu(kb_mouseemu_settings_t *buffer) {
     if (buffer) {
-        memcpy(buffer, &default_mouseemu, sizeof(default_mouseemu));
+        memcpy(buffer, &generated_kb_handler_default_mouseemu,
+               sizeof(generated_kb_handler_default_mouseemu));
     }
 
     return 0;
 }
 
 int kb_handler_get_default_thresholds(uint16_t *buffer) {
-    if (!buffer) {
-        return 0;
-    }
-
-    memset(buffer, 0, TOTAL_KEY_COUNT * sizeof(uint16_t));
-
-    for (size_t i = 0; i < ARRAY_SIZE(kscans); ++i) {
-        const struct device *kscan = kscans[i];
-        int idx_offset = kscan_get_idx_offset(kscan);
-        int key_amount = kscan_get_key_amount(kscan);
-        int err;
-
-        if (key_amount < 0) {
-            return key_amount;
-        }
-        if (idx_offset < 0) {
-            return idx_offset;
-        }
-
-        err = kscan_get_default_thresholds(kscan, &buffer[idx_offset]);
-        if (err < 0) {
-            return err;
-        }
-    }
-
-    if (KEY_COUNT_SLAVE > 0U && KEY_COUNT == KEY_COUNT_SLAVE) {
-        memcpy(&buffer[KEY_COUNT], buffer, KEY_COUNT * sizeof(uint16_t));
+    if (buffer) {
+        memcpy(buffer, generated_kb_handler_default_thresholds,
+               sizeof(generated_kb_handler_default_thresholds));
     }
 
     return 0;

@@ -4,6 +4,8 @@
 
 LOG_MODULE_REGISTER(kscan_channels, CONFIG_KSCAN_LOG_LEVEL);
 
+#define KSCAN_THRESHOLD_INACTIVE UINT16_MAX
+
 struct kscan_channels_config {
     const struct adc_dt_spec *channels;
     const uint16_t channels_count;
@@ -11,7 +13,6 @@ struct kscan_channels_config {
     const uint32_t settle_us;
     const uint16_t idx_offset;
 
-    const uint16_t *default_thresholds;
 };
 
 struct kscan_channels_data {
@@ -108,18 +109,6 @@ static int kscan_channels_get_thresholds(const struct device *dev,
     return 0;
 }
 
-static int kscan_channels_get_default_thresholds(const struct device *dev,
-                                                 uint16_t *thresholds) {
-    if (!thresholds) {
-        return -EINVAL;
-    }
-    const struct kscan_channels_config *cfg = dev->config;
-    memcpy(thresholds, cfg->default_thresholds,
-           cfg->channels_count * sizeof(uint16_t));
-
-    return 0;
-}
-
 static int kscan_channels_get_key_amount(const struct device *dev) {
     const struct kscan_channels_config *cfg = dev->config;
     return cfg->channels_count;
@@ -147,7 +136,6 @@ static int kscan_channels_get_values(const struct device *dev,
 DEVICE_API(kscan, kscan_channels_api) = {
     .get_thresholds = kscan_channels_get_thresholds,
     .set_thresholds = kscan_channels_set_thresholds,
-    .get_default_thresholds = kscan_channels_get_default_thresholds,
     .get_key_amount = kscan_channels_get_key_amount,
     .get_idx_offset = kscan_channels_get_idx_offset,
     .get_values = kscan_channels_get_values,
@@ -173,6 +161,10 @@ static int kscan_channels_init(const struct device *dev) {
     }
 
     LOG_INF("KScan (channels) ready: %u channels", cfg->channels_count);
+
+    for (uint16_t i = 0; i < cfg->channels_count; ++i) {
+        data->thresholds[i] = KSCAN_THRESHOLD_INACTIVE;
+    }
 
     for (uint16_t i = 0; i < cfg->channels_count; ++i) {
         k_thread_create(&data->threads[i], data->stacks[i],
@@ -208,9 +200,6 @@ static int kscan_channels_init(const struct device *dev) {
 #define KSCAN_CHANNELS_DEFINE(inst)                                            \
     static const struct adc_dt_spec __kscan_channels_adc_channels__##inst[] =  \
         {DT_INST_FOREACH_PROP_ELEM(inst, io_channels, ADC_SPEC_AND_COMMA)};    \
-    static const uint16_t __kscan_channels_default_tresholds__##inst[] = {     \
-        DT_INST_FOREACH_PROP_ELEM(inst, default_thresholds,                    \
-                                  U16_PROP_ELEM_AND_COMMA)};                   \
     DT_INST_FOREACH_PROP_ELEM(inst, io_channels, THREAD_STACK_DEFINE_IDX);     \
     enum {                                                                     \
         __kscan_channels_cnt__##inst = DT_INST_PROP_LEN(inst, io_channels)     \
@@ -224,9 +213,7 @@ static int kscan_channels_init(const struct device *dev) {
     static struct k_thread                                                     \
         __kscan_channels_threads__##inst[__kscan_channels_cnt__##inst] = {};   \
     static uint16_t                                                            \
-        __kscan_channels_tresholds__##inst[__kscan_channels_cnt__##inst] = {   \
-            DT_INST_FOREACH_PROP_ELEM(inst, default_thresholds,                \
-                                      U16_PROP_ELEM_AND_COMMA)};               \
+        __kscan_channels_tresholds__##inst[__kscan_channels_cnt__##inst] = {0}; \
     static uint16_t                                                            \
         __kscan_channels_chan_idxs__##inst[__kscan_channels_cnt__##inst] = {   \
             DT_INST_FOREACH_PROP_ELEM(inst, io_channels,                       \
@@ -239,8 +226,6 @@ static int kscan_channels_init(const struct device *dev) {
             .idx_offset = DT_INST_PROP(inst, idx_offset),                      \
                                                                                \
             .settle_us = DT_INST_PROP(inst, settle_us),                        \
-                                                                               \
-            .default_thresholds = __kscan_channels_default_tresholds__##inst,  \
     };                                                                         \
                                                                                \
     static struct kscan_channels_data __kscan_channels_data__##inst = {        \

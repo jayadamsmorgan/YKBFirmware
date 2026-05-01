@@ -17,8 +17,6 @@ struct kscan_cb {
 __subsystem struct kscan_driver_api {
     int (*set_thresholds)(const struct device *dev, uint16_t *thresholds);
     int (*get_thresholds)(const struct device *dev, uint16_t *thresholds);
-    int (*get_default_thresholds)(const struct device *dev,
-                                  uint16_t *thresholds);
     int (*get_key_amount)(const struct device *dev);
     int (*get_idx_offset)(const struct device *dev);
     int (*get_values)(const struct device *dev, uint16_t *values);
@@ -41,13 +39,6 @@ __syscall int kscan_set_thresholds(const struct device *dev,
 // Returns 0 on success, negative value otherwise
 __syscall int kscan_get_thresholds(const struct device *dev,
                                    uint16_t *thresholds);
-
-// Get default thresholds.
-// Caller must allocate thresholds array of size get_key_amount()
-//
-// Returns 0 on success, negative value otherwise
-__syscall int kscan_get_default_thresholds(const struct device *dev,
-                                           uint16_t *thresholds);
 
 // Get the amount of keys managed by the KScan instance.
 //
@@ -76,12 +67,6 @@ static inline int z_impl_kscan_get_thresholds(const struct device *dev,
                                               uint16_t *thresholds) {
     __ASSERT_NO_MSG(DEVICE_API_GET(kscan, dev));
     return DEVICE_API_GET(kscan, dev)->get_thresholds(dev, thresholds);
-}
-
-static inline int z_impl_kscan_get_default_thresholds(const struct device *dev,
-                                                      uint16_t *thresholds) {
-    __ASSERT_NO_MSG(DEVICE_API_GET(kscan, dev));
-    return DEVICE_API_GET(kscan, dev)->get_default_thresholds(dev, thresholds);
 }
 
 static inline int z_impl_kscan_get_key_amount(const struct device *dev) {

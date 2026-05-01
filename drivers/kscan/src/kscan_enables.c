@@ -6,14 +6,14 @@
 
 LOG_MODULE_REGISTER(kscan_enables, CONFIG_KSCAN_LOG_LEVEL);
 
+#define KSCAN_THRESHOLD_INACTIVE UINT16_MAX
+
 struct kscan_enables_config {
     const struct adc_dt_spec channel;
     const struct gpio_dt_spec *enables;
 
     const uint16_t idx_offset;
     const uint16_t key_amount;
-
-    const uint16_t *default_thresholds;
 
     const uint32_t settle_us;
 };
@@ -135,15 +135,6 @@ static int kscan_enables_get_thresholds(const struct device *dev,
     return 0;
 }
 
-static int kscan_enables_get_default_thresholds(const struct device *dev,
-                                                uint16_t *thresholds) {
-    const struct kscan_enables_config *cfg = dev->config;
-    memcpy(thresholds, cfg->default_thresholds,
-           cfg->key_amount * sizeof(uint16_t));
-
-    return 0;
-}
-
 static int kscan_enables_get_key_amount(const struct device *dev) {
     const struct kscan_enables_config *cfg = dev->config;
     return cfg->key_amount;
@@ -169,7 +160,6 @@ static int kscan_enables_get_values(const struct device *dev,
 DEVICE_API(kscan, kscan_enables_api) = {
     .get_thresholds = kscan_enables_get_thresholds,
     .set_thresholds = kscan_enables_set_thresholds,
-    .get_default_thresholds = kscan_enables_get_default_thresholds,
 
     .get_key_amount = kscan_enables_get_key_amount,
     .get_idx_offset = kscan_enables_get_idx_offset,
@@ -204,6 +194,10 @@ static int kscan_enables_init(const struct device *dev) {
 
     LOG_INF("KScan (Enables) ready: %u enables", cfg->key_amount);
 
+    for (uint16_t i = 0; i < cfg->key_amount; ++i) {
+        data->thresholds[i] = KSCAN_THRESHOLD_INACTIVE;
+    }
+
     k_thread_create(&data->thread, data->stack,
                     CONFIG_KSCAN_ENABLES_THREAD_STACK_SIZE,
                     kscan_enables_thread, (void *)dev, NULL, NULL,
@@ -225,10 +219,6 @@ static int kscan_enables_init(const struct device *dev) {
 #define KSCAN_ENABLES_DEFINE(inst)                                             \
     BUILD_ASSERT(DT_INST_PROP_LEN(inst, io_channels) == 1,                     \
                  "Kscan Enables instance should have only one ADC channel.");  \
-    BUILD_ASSERT(                                                              \
-        DT_INST_PROP_LEN(inst, enable_gpios) ==                                \
-            DT_INST_PROP_LEN(inst, default_thresholds),                        \
-        "default-thresholds should be the same length as enable-gpios.");      \
     static const struct gpio_dt_spec __kscan_enables_enables__##inst[] = {     \
         DT_INST_FOREACH_PROP_ELEM(inst, enable_gpios, GPIO_SPEC_AND_COMMA)};   \
     K_THREAD_STACK_DEFINE(__kscan_enables_thread_stack__##inst,                \
@@ -236,13 +226,8 @@ static int kscan_enables_init(const struct device *dev) {
     static const struct adc_dt_spec __kscan_enables_adc_channel__##inst[] = {  \
         DT_INST_FOREACH_PROP_ELEM(inst, io_channels, ADC_SPEC_AND_COMMA)};     \
                                                                                \
-    static const uint16_t __kscan_enables_default_thresholds__##inst[] = {     \
-        DT_INST_FOREACH_PROP_ELEM(inst, default_thresholds,                    \
-                                  U16_PROP_ELEM_AND_COMMA)};                   \
-                                                                               \
-    static uint16_t __kscan_enables_thresholds__##inst[] = {                   \
-        DT_INST_FOREACH_PROP_ELEM(inst, default_thresholds,                    \
-                                  U16_PROP_ELEM_AND_COMMA)};                   \
+    static uint16_t                                                            \
+        __kscan_enables_thresholds__##inst[DT_INST_PROP_LEN(inst, enable_gpios)] = {0}; \
                                                                                \
     static uint16_t __kscan_enables_values__##inst[DT_INST_PROP_LEN(           \
         inst, enable_gpios)] = {0};                                            \
@@ -257,8 +242,6 @@ static int kscan_enables_init(const struct device *dev) {
             .idx_offset = DT_INST_PROP(inst, idx_offset),                      \
                                                                                \
             .settle_us = DT_INST_PROP(inst, settle_us),                        \
-                                                                               \
-            .default_thresholds = __kscan_enables_default_thresholds__##inst,  \
     };                                                                         \
     static struct kscan_enables_data __kscan_enables_data__##inst = {          \
         .stack = __kscan_enables_thread_stack__##inst,                         \
