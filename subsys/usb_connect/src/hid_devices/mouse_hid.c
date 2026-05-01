@@ -2,6 +2,8 @@
 
 #include <subsys/usb_connect.h>
 
+#include <subsys/kb_handler.h>
+
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(usb_connect, CONFIG_USB_CONNECT_LOG_LEVEL);
@@ -127,8 +129,9 @@ int usb_connect_init_mouse_hid(void) {
     return 0;
 }
 
-void usb_connect_send_mouse_report(const hid_mouse_report_t *report) {
+void on_mouse_report_ready(const hid_mouse_report_t *report) {
     bool ready = ATOMIC_LOAD(&__ready);
+    usb_connect_handle_wakeup();
     if (!ready) {
         return;
     }
@@ -138,3 +141,7 @@ void usb_connect_send_mouse_report(const hid_mouse_report_t *report) {
         LOG_ERR("Error submitting mouse report: %d", err);
     }
 }
+
+static KB_HANDLER_TRANSPORT_CB_DEFINE(mouse_hid) = {
+    .on_mouse_report_ready = on_mouse_report_ready,
+};

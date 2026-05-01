@@ -27,8 +27,4 @@ typedef struct __packed {
 
 void usb_connect_handle_wakeup(void);
 
-void usb_connect_send_kb_report(const hid_kb_report_t *report);
-
-void usb_connect_send_mouse_report(const hid_mouse_report_t *report);
-
 #endif // LIB_USB_CONNECT_H

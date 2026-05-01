@@ -86,6 +86,9 @@ SYS_INIT(usb_connect_init, POST_KERNEL, CONFIG_USB_CONNECT_INIT_PRIORITY);
 
 void usb_connect_handle_wakeup(void) {
 #if CONFIG_USB_CONNECT_REMOTE_WAKEUP
+    if (usbd == NULL) {
+        return;
+    }
     if (usbd_is_suspended(usbd)) {
         int ret = usbd_wakeup_request(usbd);
         if (ret) {

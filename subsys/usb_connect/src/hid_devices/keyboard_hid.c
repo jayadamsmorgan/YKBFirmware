@@ -2,6 +2,8 @@
 
 #include <subsys/usb_connect.h>
 
+#include <subsys/kb_handler.h>
+
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(usb_connect, CONFIG_USB_CONNECT_LOG_LEVEL);
@@ -131,8 +133,9 @@ int usb_connect_init_kbd_hid(void) {
     return 0;
 }
 
-void usb_connect_send_kb_report(const hid_kb_report_t *report) {
+static void on_kb_report_ready(const hid_kb_report_t *const report) {
     bool ready = ATOMIC_LOAD(&__ready);
+    usb_connect_handle_wakeup();
     if (!ready) {
         LOG_ERR("send_kb_report: not ready");
         return;
@@ -144,3 +147,7 @@ void usb_connect_send_kb_report(const hid_kb_report_t *report) {
     }
     LOG_INF("send_kb_report: sent");
 }
+
+static KB_HANDLER_TRANSPORT_CB_DEFINE(kbd_hid) = {
+    .on_kb_report_ready = on_kb_report_ready,
+};

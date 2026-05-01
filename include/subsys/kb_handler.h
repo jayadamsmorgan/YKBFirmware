@@ -2,8 +2,18 @@
 #define __SUBSYS_KB_HANDLER_H_
 
 #include <subsys/kb_settings.h>
+#include <subsys/usb_connect.h>
 
+#include <zephyr/sys/iterable_sections.h>
 #include <zephyr/toolchain.h>
+
+struct kb_handler_transport_cb {
+    void (*on_kb_report_ready)(const hid_kb_report_t *const report);
+    void (*on_mouse_report_ready)(const hid_mouse_report_t *const report);
+};
+
+#define KB_HANDLER_TRANSPORT_CB_DEFINE(name)                                   \
+    STRUCT_SECTION_ITERABLE(kb_handler_transport_cb, name)
 
 void kb_handler_get_values(uint16_t *values, uint16_t count);
 

@@ -1,5 +1,7 @@
 zephyr_library()
 
+zephyr_linker_sources(SECTIONS iterables.ld)
+
 zephyr_library_sources(src/kb_handler_config.c src/kb_handler_core.c
                        src/kb_handler_transport.c)
 
