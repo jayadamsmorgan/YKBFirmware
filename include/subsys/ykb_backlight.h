@@ -3,6 +3,8 @@
 
 #include <subsys/kb_settings.h>
 
+#define DEFAULT_THREAD_SLEEP_MS 5
+
 #define YKB_BACKLIGHT_MAX_ABS_BRIGHTNESS_PERCENT                               \
     Z_USER_PROP_OR(ykb_backlight_max_abs_brightness, 20)
 

@@ -1,5 +1,6 @@
 #include <subsys/ykb_backlight.h>
 
+#include "generated_backlight_resources.h"
 #include "lumiscript_vm.h"
 
 #include <subsys/kb_settings.h>
@@ -13,8 +14,6 @@
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(ykb_backlight, CONFIG_YKB_BACKLIGHT_LOG_LEVEL);
-
-#define DEFAULT_THREAD_SLEEP_MS 5
 
 static const struct device *led_strip = Z_USER_DEV(ykb_backlight);
 
@@ -43,103 +42,6 @@ K_THREAD_STACK_DEFINE(ykb_backlight_thread_stack,
 
 static K_MUTEX_DEFINE(ykb_bl_mut);
 
-ykb_backlight_settings_t default_backlight_settings =
-    {
-        .on = true,
-        .script_amount = 5,
-        .active_script_index = 4,
-        .speed = 1.0,
-        .brightness = 1.0,
-        .names =
-            {
-                "static",
-                "animation",
-                "nested",
-                "white",
-                "ripple",
-            },
-        .offsets = {0, 64, 217, 463, 519, 1301},
-        .backlight_data =
-            {
-                // Static red
-                73, 77, 85, 76, 1, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 14, 0, 0, 0, 0, 0, 22, 67,
-                0, 0, 72, 67, 0, 0, 127, 67, 26, 26, 1, 0, 0, 1, 1, 0, 1, 2, 0,
-                22, 4, 3, 25, 26,
-                // Animation
-                73, 77, 85, 76, 1, 0, 2, 0, 8, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
-                7, 0, 0, 0, 1, 0, 0, 0, 17, 0, 0, 0, 63, 0, 0, 0, 10, 215, 163,
-                60, 102, 102, 102, 64, 0, 0, 180, 67, 0, 0, 200, 66, 0, 0,
-                72, 66, 0, 0, 0, 63, 0, 0, 0, 65, 0, 0, 0, 0, 0, 0, 0, 0, 26, 3,
-                0, 0, 2, 2, 1, 0, 0, 9, 2, 3, 9, 7, 4, 0, 0, 26, 2, 0, 1, 1, 0,
-                9, 3, 0, 0, 7, 1, 2, 0, 11, 1, 3, 0, 1, 3, 0, 2, 0, 2, 1, 1, 4,
-                0, 1, 4, 0, 22, 3, 4, 3, 0, 0, 1, 5, 0, 9, 8, 22, 1, 1, 1, 6, 0,
-                9, 8, 1, 7, 0, 1, 3, 0, 22, 2, 3, 22, 5, 3, 25, 26,
-                // Nested
-                73, 77, 85, 76, 1, 0, 2, 0, 12, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
-                4, 0, 0, 0, 1, 0, 0, 0, 21, 0, 0, 0, 132, 0, 0, 0, 10, 215, 163,
-                61, 0, 0, 180, 67, 0, 0, 200, 66, 154, 153, 153, 62, 0, 0, 0, 0,
-                0, 0, 127, 67, 51, 51, 35, 64, 154, 153, 153, 63, 0, 0,
-                72, 66, 102, 102, 102, 64, 0, 0, 160, 66, 0, 0, 12, 66, 0, 0, 0,
-                0, 0, 0, 0, 0, 26, 3, 0, 0, 2, 2, 2, 3, 9, 1, 0, 0, 9, 7, 1, 1,
-                0, 11, 4, 0, 0, 26, 2, 4, 24, 14, 0, 1, 2, 0, 6, 0, 0,
-                23, 39, 0, 5, 0, 0, 2, 2, 1, 3, 0, 9, 2, 3, 9, 8, 1, 4, 0, 1, 2,
-                0, 22, 2, 3, 6, 0, 0, 5, 0, 0, 1, 4, 0, 18, 24, 72, 0, 1, 5, 0,
-                5, 0, 0, 1, 6, 0, 9, 5, 0, 0, 1, 7, 0, 9, 22, 4, 3, 23, 130,
-                0, 2, 0, 1, 8, 0, 16, 24, 107, 0, 3, 0, 0, 2, 1, 1, 9, 0, 9, 7,
-                1, 1, 0, 11, 1, 10, 0, 1, 11, 0, 22, 5, 3, 23, 130, 0, 3, 0, 0,
-                2, 0, 1, 9, 0, 9, 7, 1, 1, 0, 11, 1, 10, 0, 1, 11, 0, 22, 5, 3,
-                25, 26,
-                // Static full white
-                73, 77, 85, 76, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 14, 0, 0, 0, 0, 0,
-                127, 67, 26, 26, 1, 0, 0, 1, 0, 0, 1, 0, 0, 22, 4, 3, 25, 26,
-                // Ripple
-                73, 77, 85, 76, 1, 0, 2, 0, 12, 0, 0, 0, 17, 0, 0, 0, 1, 0, 0,
-                0, 9, 0, 0, 0, 1, 0, 0, 0, 137, 0, 0, 0, 232, 1, 0, 0, 0, 0,
-                150, 68, 0, 0, 0, 0, 0, 0, 128, 63, 0, 0, 0, 64, 0, 0,
-                128, 64, 0, 0, 132, 67, 0, 0, 156, 66, 0, 0, 200, 66, 174,
-                71, 225, 62, 0, 0, 160, 64, 10, 215, 163, 61, 10, 215,
-                35, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 28, 70, 0,
-                64, 28, 70, 0, 64, 28, 70, 0, 64, 28, 70, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 3, 12, 0,
-                24, 34, 0, 3, 8, 0, 2, 2, 2, 3, 9, 7, 4, 8, 0, 3, 8, 0, 1, 0, 0,
-                18, 24, 34, 0, 1, 1, 0, 4, 12, 0, 3, 13, 0, 24, 68, 0, 3, 9, 0,
-                2, 2, 2, 3, 9, 7, 4, 9, 0, 3, 9, 0, 1, 0, 0, 18, 24, 68, 0, 1,
-                1, 0, 4, 13, 0, 3, 14, 0, 24, 102, 0, 3, 10, 0, 2, 2, 2, 3, 9,
-                7, 4, 10, 0, 3, 10, 0, 1, 0, 0, 18, 24, 102, 0, 1, 1, 0, 4,
-                14, 0, 3, 15, 0, 24, 136, 0, 3, 11, 0, 2, 2, 2, 3, 9, 7, 4,
-                11, 0, 3, 11, 0, 1, 0, 0, 18, 24, 136, 0, 1, 1, 0, 4, 15, 0,
-                26, 2, 4, 5, 0, 0, 13, 20, 24, 151, 0, 3, 16, 0, 1, 1, 0,
-                14, 24, 45, 0, 2, 0, 4, 0, 0, 2, 1, 4, 4, 0, 1, 1, 0, 4, 8, 0,
-                1, 2, 0, 4, 12, 0, 23, 137, 0, 3, 16, 0, 1, 2, 0, 14, 24, 80, 0,
-                2, 0, 4, 1, 0, 2, 1, 4, 5, 0, 1, 1, 0, 4, 9, 0, 1, 2, 0, 4,
-                13, 0, 23, 137, 0, 3, 16, 0, 1, 3, 0, 14, 24, 115, 0, 2, 0, 4,
-                2, 0, 2, 1, 4, 6, 0, 1, 1, 0, 4, 10, 0, 1, 2, 0, 4, 14, 0,
-                23, 137, 0, 2, 0, 4, 3, 0, 2, 1, 4, 7, 0, 1, 1, 0, 4, 11, 0, 1,
-                2, 0, 4, 15, 0, 3, 16, 0, 1, 2, 0, 7, 1, 4, 0, 11, 4, 16, 0, 2,
-                4, 6, 0, 0, 1, 5, 0, 1, 6, 0, 3, 12, 0, 24, 237, 0, 1, 7, 0, 2,
-                0, 2, 1, 3, 0, 0, 3, 4, 0, 22, 3, 4, 3, 8, 0, 1, 8, 0, 9, 8,
-                22, 1, 1, 1, 9, 0, 9, 8, 1, 1, 0, 1, 7, 0, 22, 2, 3, 1, 7, 0, 3,
-                8, 0, 1, 10, 0, 9, 8, 1, 1, 0, 1, 7, 0, 22, 2, 3, 9, 1, 11, 0,
-                9, 23, 240, 0, 1, 1, 0, 3, 13, 0, 24, 59, 1, 1, 7, 0, 2, 0, 2,
-                1, 3, 1, 0, 3, 5, 0, 22, 3, 4, 3, 9, 0, 1, 8, 0, 9, 8, 22, 1, 1,
-                1, 9, 0, 9, 8, 1, 1, 0, 1, 7, 0, 22, 2, 3, 1, 7, 0, 3, 9, 0, 1,
-                10, 0, 9, 8, 1, 1, 0, 1, 7, 0, 22, 2, 3, 9, 1, 11, 0, 9,
-                23, 62, 1, 1, 1, 0, 22, 11, 2, 3, 14, 0, 24, 140, 1, 1, 7, 0, 2,
-                0, 2, 1, 3, 2, 0, 3, 6, 0, 22, 3, 4, 3, 10, 0, 1, 8, 0, 9, 8,
-                22, 1, 1, 1, 9, 0, 9, 8, 1, 1, 0, 1, 7, 0, 22, 2, 3, 1, 7, 0, 3,
-                10, 0, 1, 10, 0, 9, 8, 1, 1, 0, 1, 7, 0, 22, 2, 3, 9, 1, 11, 0,
-                9, 23, 143, 1, 1, 1, 0, 3, 15, 0, 24, 218, 1, 1, 7, 0, 2, 0, 2,
-                1, 3, 3, 0, 3, 7, 0, 22, 3, 4, 3, 11, 0, 1, 8, 0, 9, 8, 22, 1,
-                1, 1, 9, 0, 9, 8, 1, 1, 0, 1, 7, 0, 22, 2, 3, 1, 7, 0, 3, 11, 0,
-                1, 10, 0, 9, 8, 1, 1, 0, 1, 7, 0, 22, 2, 3, 9, 1, 11, 0, 9,
-                23, 221, 1, 1, 1, 0, 22, 11, 2, 22, 11, 2, 22, 5, 3, 25, 26
-                //
-            },
-};
-
 static int64_t prev_update = 0;
 static float cur_speed = 1.0;
 static float cur_brightness = 1.0;
@@ -147,13 +49,20 @@ static bool on = true;
 
 static bool script_loaded = false;
 
-static uint16_t press[CONFIG_KB_SETTINGS_KEY_COUNT] = {0};
-static bool pressed[CONFIG_KB_SETTINGS_KEY_COUNT] = {0};
+#if CONFIG_KB_HANDLER_SPLITLINK_MASTER
+#define KEY_COUNT CONFIG_KB_SETTINGS_KEY_COUNT
+#endif // CONFIG_KB_HANDLER_SPLITLINK_MASTER
+#if CONFIG_KB_HANDLER_SPLITLINK_SLAVE
+#define KEY_COUNT CONFIG_KB_SETTINGS_KEY_COUNT_SLAVE
+#endif // CONFIG_KB_HANDLER_SPLITLINK_SLAVE
+
+static uint16_t press[KEY_COUNT] = {0};
+static bool pressed[KEY_COUNT] = {0};
 
 static uint32_t thread_sleep_time = DEFAULT_THREAD_SLEEP_MS;
 
-static struct led_rgb _buffer1[CONFIG_KB_SETTINGS_KEY_COUNT] = {0};
-static struct led_rgb _buffer2[CONFIG_KB_SETTINGS_KEY_COUNT] = {0};
+static struct led_rgb _buffer1[KEY_COUNT] = {0};
+static struct led_rgb _buffer2[KEY_COUNT] = {0};
 static struct led_rgb *buf_front = _buffer1;
 static struct led_rgb *buf_back = _buffer2;
 
@@ -164,7 +73,7 @@ static inline uint8_t apply_brightness(uint8_t color) {
 }
 
 static inline void clear_state() {
-    memset(buf_back, 0, sizeof(struct led_rgb) * CONFIG_KB_SETTINGS_KEY_COUNT);
+    memset(buf_back, 0, sizeof(struct led_rgb) * KEY_COUNT);
     struct led_rgb *tmp = buf_front;
     buf_front = buf_back;
     buf_back = tmp;
@@ -209,11 +118,10 @@ static void ykb_backlight_thread_handler(void *a, void *b, void *c) {
             goto cont;
         }
 
-        for (uint16_t i = idx_offset;
-             i < idx_offset + CONFIG_KB_SETTINGS_KEY_COUNT; ++i) {
+        for (uint16_t i = 0; i < KEY_COUNT; ++i) {
             lumi_vm_output output;
-            inputs.x = x_coordinates[i];
-            inputs.y = y_coordinates[i];
+            inputs.x = x_coordinates[i + idx_offset];
+            inputs.y = y_coordinates[i + idx_offset];
             inputs.pressed = pressed[i];
             inputs.press = press[i];
             err = lumiscript_run_render(&inputs, i, &output);
@@ -230,8 +138,7 @@ static void ykb_backlight_thread_handler(void *a, void *b, void *c) {
         struct led_rgb *tmp = buf_front;
         buf_front = buf_back;
         buf_back = tmp;
-        err = led_strip_update_rgb(led_strip, buf_front,
-                                   CONFIG_KB_SETTINGS_KEY_COUNT);
+        err = led_strip_update_rgb(led_strip, buf_front, KEY_COUNT);
         if (err) {
             LOG_ERR("led_strip_update_rgb: %d", err);
         }
@@ -320,7 +227,6 @@ static int ykb_backlight_init(void) {
 
     k_mutex_lock(&ykb_bl_mut, K_FOREVER);
 
-    LOG_INF("BL INIT!");
     if (!device_is_ready(led_strip)) {
         LOG_ERR("LED strip is not ready");
         k_mutex_unlock(&ykb_bl_mut);

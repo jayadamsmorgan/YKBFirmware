@@ -6,9 +6,6 @@
 	model = "YKB Dactyl V1 Left board";
 	compatible = "ykb,dactyl-v1-nrf5340-cpuapp-left";
 
-	zephyr,user {
-	};
-
 	chosen {
 		zephyr,sram = &sram0_image;
 		zephyr,flash = &flash0;
