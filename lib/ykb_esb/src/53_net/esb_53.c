@@ -38,6 +38,7 @@ K_WORK_DEFINE(m_work_send_evt_rx_received, work_send_evt_rx_received_func);
 
 static uint8_t *last_rx_buf;
 static uint32_t last_rx_length;
+static bool rpc_initialized;
 
 void on_esb_callback(ykb_esb_event_t *event, void *user_data) {
     switch (event->evt_type) {
@@ -238,8 +239,12 @@ static void err_handler(const struct nrf_rpc_err_report *report) {
     k_oops();
 }
 
-static int serialization_init(void) {
+int ykb_esb_rpc_start(void) {
     int err;
+
+    if (rpc_initialized) {
+        return 0;
+    }
 
     LOG_DBG("nRF RPC init begin");
 
@@ -249,8 +254,7 @@ static int serialization_init(void) {
     }
 
     LOG_DBG("nRF RPC init ok");
+    rpc_initialized = true;
 
     return 0;
 }
-
-SYS_INIT(serialization_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);

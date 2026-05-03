@@ -4,8 +4,8 @@
 
 LOG_MODULE_REGISTER(splitlink_esb_ptx, CONFIG_SPLITLINK_LOG_LEVEL);
 
-#define SPLITLINK_ESB_INIT_DELAY_MS 2000
-#define SPLITLINK_ESB_RETRY_DELAY_MS 1000
+#define SPLITLINK_ESB_INIT_DELAY_MS 5000
+#define SPLITLINK_ESB_RETRY_DELAY_MS 2000
 
 static int splitlink_ykb_esb_send(const struct device *dev, uint8_t *data,
                                   size_t data_len) {
@@ -150,13 +150,9 @@ static void init_work_handler(struct k_work *work) {
 
     int err = ykb_esb_init(&esb_cfg, on_esb_callback);
     if (err) {
-        if (err == -EAGAIN) {
-            LOG_DBG("YKB ESB RPC not bound yet, retrying");
-            k_work_schedule(&data->init_work.d_work,
-                            K_MSEC(SPLITLINK_ESB_RETRY_DELAY_MS));
-        } else {
-            LOG_ERR("Unable to initialize YKB ESB: %d", err);
-        }
+        LOG_WRN("YKB ESB init deferred (%d), retrying", err);
+        k_work_schedule(&data->init_work.d_work,
+                        K_MSEC(SPLITLINK_ESB_RETRY_DELAY_MS));
     } else {
         data->ready = true;
         LOG_INF("Init work handler OK");

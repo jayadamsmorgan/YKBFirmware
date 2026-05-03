@@ -35,4 +35,6 @@ int ykb_esb_init(ykb_esb_config_t *config, ykb_esb_callback_t callback);
 
 int ykb_esb_send(ykb_esb_data_t *tx_packet);
 
+int ykb_esb_rpc_start(void);
+
 #endif // __LIB_YKB_ESB_H_

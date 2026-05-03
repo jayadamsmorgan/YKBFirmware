@@ -53,13 +53,11 @@ static ykb_esb_event_t m_event;
 static uint8_t m_rx_buf[CONFIG_ESB_MAX_PAYLOAD_LENGTH];
 static bool rpc_initialized;
 static bool rpc_bound;
-static K_SEM_DEFINE(rpc_bound_sem, 0, 1);
 
 static void rpc_bound_handler(const struct nrf_rpc_group *group) {
     ARG_UNUSED(group);
 
     rpc_bound = true;
-    k_sem_give(&rpc_bound_sem);
 }
 
 /* - Pull an error code from the RPC CBOR buffer
@@ -254,16 +252,13 @@ static int serialization_init(void) {
 
     err = nrf_rpc_init(err_handler);
     if (err) {
-        return -EINVAL;
+        return -EAGAIN;
     }
 
-    LOG_DBG("esb rpc init ok");
     rpc_initialized = true;
 
     return 0;
 }
-
-SYS_INIT(serialization_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
 
 int ykb_esb_init(ykb_esb_config_t *config, ykb_esb_callback_t callback) {
     int err = serialization_init();
