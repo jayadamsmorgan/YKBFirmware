@@ -2,6 +2,7 @@
 
 #include <subsys/kb_settings.h>
 
+#include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_DECLARE(ykb_backlight);

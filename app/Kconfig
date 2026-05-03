@@ -2,6 +2,26 @@ menu "Zephyr"
 source "Kconfig.zephyr"
 endmenu
 
+comment "Application defaults"
+
+config KB_HANDLER
+	default y
+
+config KB_SETTINGS
+	default y
+
+config USB_CONNECT
+	default y
+
+config BT_CONNECT
+	default y
+
+config YKB_BATTSENSE
+	default y
+
+config YKB_BACKLIGHT
+	default y
+
 module = APP
 module-str = APP
 source "subsys/logging/Kconfig.template.log_config"

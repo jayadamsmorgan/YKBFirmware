@@ -1,4 +1,7 @@
 manifest:
+  self:
+    west-commands: west-commands.yml
+
   remotes:
     - name: ncs
       url-base: https://github.com/jayadamsmorgan
@@ -7,7 +10,7 @@ manifest:
     - name: nrf
       remote: ncs
       repo-path: sdk-nrf
-      revision: v3.2.1-patch-nrf3540-mpsl
+      revision: v3.2.1-patch-nrf5340-mpsl
       import: true
 
     - name: lumiscript

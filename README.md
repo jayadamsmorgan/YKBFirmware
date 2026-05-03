@@ -32,5 +32,5 @@ west sdk install
 cd YKBFirmware
 
 # Build for the available board:
-make dactyl_v1
+west ykb-build dactyl_v1
 ```

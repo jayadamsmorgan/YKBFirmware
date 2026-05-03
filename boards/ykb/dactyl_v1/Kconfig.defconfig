@@ -3,6 +3,19 @@ if BOARD_DACTYL_V1_NRF5340_CPUAPP_LEFT || BOARD_DACTYL_V1_NRF5340_CPUAPP_RIGHT
     DT_CHOSEN_Z_CODE_PARTITION := zephyr,code-partition
     DT_CHOSEN_Z_SRAM_PARTITION := zephyr,sram-secure-partition
 
+    if LOG
+
+        config SERIAL
+            default y
+
+        config CONSOLE
+            default y
+
+        config UART_CONSOLE
+            default y
+
+    endif # LOG
+
     if USB_DEVICE_STACK
 
         config USB_DEVICE_VID

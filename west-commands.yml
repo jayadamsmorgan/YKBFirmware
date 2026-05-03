@@ -1,0 +1,6 @@
+west-commands:
+  - file: scripts/west_commands/ykb_build.py
+    commands:
+      - name: ykb-build
+        class: YkbBuild
+        help: smart YKB board build
