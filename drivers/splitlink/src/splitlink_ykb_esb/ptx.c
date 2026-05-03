@@ -4,6 +4,9 @@
 
 LOG_MODULE_REGISTER(splitlink_esb_ptx, CONFIG_SPLITLINK_LOG_LEVEL);
 
+#define SPLITLINK_ESB_INIT_DELAY_MS 2000
+#define SPLITLINK_ESB_RETRY_DELAY_MS 1000
+
 static int splitlink_ykb_esb_send(const struct device *dev, uint8_t *data,
                                   size_t data_len) {
     if (data_len == 0 || data == NULL) {
@@ -147,7 +150,13 @@ static void init_work_handler(struct k_work *work) {
 
     int err = ykb_esb_init(&esb_cfg, on_esb_callback);
     if (err) {
-        LOG_ERR("Unable to initialize YKB ESB: %d", err);
+        if (err == -EAGAIN) {
+            LOG_DBG("YKB ESB RPC not bound yet, retrying");
+            k_work_schedule(&data->init_work.d_work,
+                            K_MSEC(SPLITLINK_ESB_RETRY_DELAY_MS));
+        } else {
+            LOG_ERR("Unable to initialize YKB ESB: %d", err);
+        }
     } else {
         data->ready = true;
         LOG_INF("Init work handler OK");
@@ -166,7 +175,8 @@ static int splitlink_esb_init(const struct device *dev) {
     // Don't know how to fix that yet, but for some reason ESB only
     // initializes after some delay and panics somewhere in rpmsg_virtio
     k_work_init_delayable(&data->init_work.d_work, init_work_handler);
-    k_work_schedule(&data->init_work.d_work, K_MSEC(500));
+    k_work_schedule(&data->init_work.d_work,
+                    K_MSEC(SPLITLINK_ESB_INIT_DELAY_MS));
 
     k_work_init_delayable(&data->disconnect_work.d_work,
                           disconnect_work_handler);

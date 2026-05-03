@@ -19,7 +19,8 @@ static kb_settings_t settings_snapshot;
 static bool thread_started;
 static uint16_t values[TOTAL_KEY_COUNT];
 
-#define KBH_SLAVE_VALUES_CAPACITY ((KEY_COUNT_SLAVE > 0U) ? KEY_COUNT_SLAVE : 1U)
+#define KBH_SLAVE_VALUES_CAPACITY                                              \
+    ((KEY_COUNT_SLAVE > 0U) ? KEY_COUNT_SLAVE : 1U)
 
 enum kbh_thread_msg_type {
     KBH_THREAD_MSG_KEY = 0U,
@@ -46,6 +47,7 @@ struct kbh_runtime_state {
 
     bool pressed_keys[TOTAL_KEY_COUNT];
     uint16_t current_values[TOTAL_KEY_COUNT];
+    bool race_pressed_keys[TOTAL_KEY_COUNT];
 
     uint16_t layer1_keys[TOTAL_KEY_COUNT];
     uint16_t layer2_keys[TOTAL_KEY_COUNT];
@@ -115,8 +117,7 @@ static void build_kb_report(hid_kb_report_t *report, kb_settings_t *settings,
             continue;
         }
 
-        hid =
-            resolve_hid(settings, i, second_layer_active, third_layer_active);
+        hid = resolve_hid(settings, i, second_layer_active, third_layer_active);
 
         if (hid == KEY_LAYER1 || hid == KEY_LAYER2 || hid == KEY_FN ||
             hid == KEY_NOKEY) {
@@ -309,9 +310,8 @@ static inline void send_mouse_report_if_changed(struct kbh_runtime_state *st) {
 static void send_race_report_if_changed(struct kbh_runtime_state *st) {
     double max_percentage = 0.0;
     int32_t max_index = -1;
-    bool pressed_race[TOTAL_KEY_COUNT];
 
-    memset(pressed_race, 0, sizeof(pressed_race));
+    memset(st->race_pressed_keys, 0, sizeof(st->race_pressed_keys));
 
     for (uint16_t i = 0; i < TOTAL_KEY_COUNT; ++i) {
         uint16_t threshold;
@@ -337,11 +337,12 @@ static void send_race_report_if_changed(struct kbh_runtime_state *st) {
     }
 
     if (max_index >= 0) {
-        pressed_race[max_index] = true;
+        st->race_pressed_keys[max_index] = true;
     }
 
-    build_kb_report(&st->kb_report, st->settings, pressed_race, TOTAL_KEY_COUNT,
-                    st->second_layer_active, st->third_layer_active);
+    build_kb_report(&st->kb_report, st->settings, st->race_pressed_keys,
+                    TOTAL_KEY_COUNT, st->second_layer_active,
+                    st->third_layer_active);
 
     if (!kb_reports_equal(&st->kb_report, &st->prev_kb_report)) {
         kb_handler_transport_send_kb_report(&st->kb_report);
@@ -352,6 +353,7 @@ static void send_race_report_if_changed(struct kbh_runtime_state *st) {
 static inline void reset_handler_state(struct kbh_runtime_state *st) {
     memset(st->pressed_keys, 0, sizeof(st->pressed_keys));
     memset(st->current_values, 0, sizeof(st->current_values));
+    memset(st->race_pressed_keys, 0, sizeof(st->race_pressed_keys));
 
     st->second_layer_active = false;
     st->third_layer_active = false;
@@ -418,23 +420,19 @@ static void process_key_transition(struct kbh_runtime_state *st, uint16_t key,
 
 static void handle_slave_values(struct kbh_runtime_state *st,
                                 const uint16_t slave_values[KEY_COUNT_SLAVE]) {
-    bool prev_pressed_keys[TOTAL_KEY_COUNT];
-
     if (KEY_COUNT_SLAVE == 0U) {
         return;
     }
 
-    memcpy(prev_pressed_keys, st->pressed_keys, sizeof(prev_pressed_keys));
     memcpy(&st->current_values[KEY_COUNT], slave_values,
            KEY_COUNT_SLAVE * sizeof(uint16_t));
 
     for (uint16_t i = KEY_COUNT; i < TOTAL_KEY_COUNT; ++i) {
+        bool was_pressed = st->pressed_keys[i];
         st->pressed_keys[i] =
             st->current_values[i] >= st->settings->thresholds[i];
-    }
 
-    for (uint16_t i = KEY_COUNT; i < TOTAL_KEY_COUNT; ++i) {
-        if (prev_pressed_keys[i] != st->pressed_keys[i]) {
+        if (was_pressed != st->pressed_keys[i]) {
             process_key_transition(st, i, st->pressed_keys[i]);
         }
     }
@@ -592,7 +590,7 @@ static void mouseemu_check(uint16_t total_key_count,
                                "button");
 }
 
-static void kb_handler_on_settings_update(kb_settings_t *settings) {
+static void kb_handler_on_settings_update(const kb_settings_t *settings) {
     struct kbh_thread_msg msg = {
         .type = KBH_THREAD_MSG_SETTINGS_SYNC,
     };
@@ -616,7 +614,8 @@ static void kb_handler_on_settings_update(kb_settings_t *settings) {
             continue;
         }
 
-        err = kscan_set_thresholds(kscan, &settings->thresholds[idx_offset]);
+        err = kscan_set_thresholds(kscan,
+                                   (uint16_t *)&settings->thresholds[idx_offset]);
         if (err) {
             LOG_ERR("Unable to set thresholds for KScan instance %s (err %d)",
                     kscan->name, err);
@@ -644,7 +643,8 @@ static void kb_handler_on_settings_update(kb_settings_t *settings) {
 
 ON_SETTINGS_UPDATE_DEFINE(kbh_core, kb_handler_on_settings_update);
 
-__weak void kb_handler_impl_after_settings_update(const kb_settings_t *settings) {
+__weak void
+kb_handler_impl_after_settings_update(const kb_settings_t *settings) {
     ARG_UNUSED(settings);
 }
 
@@ -691,9 +691,7 @@ void kb_handler_core_handle_value(uint16_t key_index, uint16_t value) {
         values[key_index] = value;
     }
 
-    if (k_msgq_put(&kbh_core_msgq, &data, K_NO_WAIT)) {
-        LOG_WRN("Value event dropped for key %u", key_index);
-    }
+    k_msgq_put(&kbh_core_msgq, &data, K_NO_WAIT);
 }
 
 void kb_handler_core_handle_slave_values(const uint16_t *slave_values,

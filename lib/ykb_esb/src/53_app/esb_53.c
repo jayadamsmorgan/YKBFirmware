@@ -42,13 +42,25 @@ NRF_RPC_IPC_TRANSPORT(esb_group_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)),
  * as modules making use of nRF RPC can be compiled in and out without needed to
  * edit the command IDs every time.
  */
-NRF_RPC_GROUP_DEFINE(esb_group, "esb_group_id", &esb_group_tr, NULL, NULL,
-                     NULL);
+static void rpc_bound_handler(const struct nrf_rpc_group *group);
+
+NRF_RPC_GROUP_DEFINE_NOWAIT(esb_group, "esb_group_id", &esb_group_tr, NULL,
+                            NULL, NULL, rpc_bound_handler, true);
 
 static ykb_esb_callback_t m_callback;
 static ykb_esb_config_t m_config;
 static ykb_esb_event_t m_event;
 static uint8_t m_rx_buf[CONFIG_ESB_MAX_PAYLOAD_LENGTH];
+static bool rpc_initialized;
+static bool rpc_bound;
+static K_SEM_DEFINE(rpc_bound_sem, 0, 1);
+
+static void rpc_bound_handler(const struct nrf_rpc_group *group) {
+    ARG_UNUSED(group);
+
+    rpc_bound = true;
+    k_sem_give(&rpc_bound_sem);
+}
 
 /* - Pull an error code from the RPC CBOR buffer
  * - Place it in `handler_data`, retrieved in the ESB API and passed to the
@@ -234,6 +246,10 @@ static void err_handler(const struct nrf_rpc_err_report *report) {
 static int serialization_init(void) {
     int err;
 
+    if (rpc_initialized) {
+        return 0;
+    }
+
     LOG_DBG("esb rpc init begin");
 
     err = nrf_rpc_init(err_handler);
@@ -242,14 +258,20 @@ static int serialization_init(void) {
     }
 
     LOG_DBG("esb rpc init ok");
+    rpc_initialized = true;
 
     return 0;
 }
+
+SYS_INIT(serialization_init, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
 
 int ykb_esb_init(ykb_esb_config_t *config, ykb_esb_callback_t callback) {
     int err = serialization_init();
     if (err) {
         return err;
+    }
+    if (!rpc_bound) {
+        return -EAGAIN;
     }
     memcpy(&m_config, config, sizeof(m_config));
     m_callback = callback;

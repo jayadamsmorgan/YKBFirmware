@@ -42,7 +42,7 @@ if KB_HANDLER
 
     config KB_HANDLER_THREAD_STACK_SIZE
         int "KB Handler thread stack size"
-        default 1024
+        default 3072
 
     config KB_HANDLER_THREAD_PRIORITY
         int "KB Handler thread priority"

@@ -5,7 +5,11 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
+#include <string.h>
+
 LOG_MODULE_DECLARE(kb_handler);
+
+static kb_settings_t splitlink_settings_tx;
 
 KSCAN_CB_DEFINE(kbh_sm) = {
     .on_event = kb_handler_core_handle_key_event,
@@ -17,12 +21,10 @@ void splitlink_handler_values_received(uint16_t *slave_values, uint16_t count) {
 }
 
 void splitlink_handler_on_connect() {
-    kb_settings_t settings;
-
     LOG_INF("SplitLink slave connected");
 
-    if (!kb_handler_core_get_settings_snapshot(&settings)) {
-        splitlink_handler_send_settings(&settings);
+    if (!kb_handler_core_get_settings_snapshot(&splitlink_settings_tx)) {
+        splitlink_handler_send_settings(&splitlink_settings_tx);
     }
 }
 
@@ -32,9 +34,8 @@ void splitlink_handler_on_disconnect() {
 }
 
 void kb_handler_impl_after_settings_update(const kb_settings_t *settings) {
-    kb_settings_t settings_copy = *settings;
-
-    splitlink_handler_send_settings(&settings_copy);
+    memcpy(&splitlink_settings_tx, settings, sizeof(splitlink_settings_tx));
+    splitlink_handler_send_settings(&splitlink_settings_tx);
 }
 
 static int kb_handler_sm_init(void) {

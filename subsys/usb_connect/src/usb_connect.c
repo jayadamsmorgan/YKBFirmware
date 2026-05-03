@@ -48,24 +48,16 @@ static void msg_cb(struct usbd_context *const usbd_ctx,
 static int usb_connect_init(void) {
     int err;
 
-#if CONFIG_USB_CONNECT_KBD
-    err = usb_connect_init_kbd_hid();
-    if (err) {
-        return err;
+    STRUCT_SECTION_FOREACH(usb_connect_hid_dev, hid_dev) {
+        if (hid_dev->init) {
+            err = hid_dev->init();
+            if (err) {
+                LOG_ERR("Unable to register HID device '%s' (err %d)",
+                        hid_dev->name ? hid_dev->name : "unknown", err);
+                return err;
+            }
+        }
     }
-#endif // CONFIG_USB_CONNECT_KBD
-#if CONFIG_USB_CONNECT_MOUSE
-    err = usb_connect_init_mouse_hid();
-    if (err) {
-        return err;
-    }
-#endif // CONFIG_USB_CONNECT_MOUSE
-#if CONFIG_USB_CONNECT_VENDOR
-    err = usb_connect_init_vendor_hid();
-    if (err) {
-        return err;
-    }
-#endif // CONFIG_USB_CONNECT_VENDOR
 
     usbd = usbd_init_device(msg_cb);
     if (usbd == NULL) {

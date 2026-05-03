@@ -42,7 +42,7 @@ KSCAN_CB_DEFINE(kbh_sm) = {
     .on_event = on_event,
 };
 
-void splitlink_handler_settings_received(kb_settings_t *settings) {
+void splitlink_handler_settings_received(const kb_settings_t *settings) {
     int err = kb_settings_apply(settings);
     if (err) {
         LOG_ERR("kb_settings_apply: %d", err);

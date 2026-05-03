@@ -18,6 +18,49 @@ if BT_CONNECT
     module-str = bt_connect
     source "subsys/logging/Kconfig.template.log_config"
 
+    config BT_CONNECT_INIT_PRIORITY
+        int "Bluetooth connect init priority"
+        default 90
+
+    config BT_CONNECT_REPORT_MAP_MAX_SIZE
+        int "Maximum assembled BLE HID report map size"
+        default 256
+
+    config BT_CONNECT_MAX_VENDOR_IN_REPORT_SIZE
+        int "Vendor input report packet size"
+        range 7 64
+        default 64
+
+    config BT_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE
+        int "Vendor output report packet size"
+        range 7 64
+        default 64
+
+    config BT_CONNECT_KBD
+        bool "Enable Bluetooth keyboard HID transport"
+        default y
+
+    config BT_CONNECT_MOUSE
+        bool "Enable Bluetooth mouse HID transport"
+        default y
+
+    config BT_CONNECT_VENDOR
+        bool "Enable Bluetooth vendor transport"
+        default y
+
+    if BT_CONNECT_VENDOR
+
+        choice BT_CONNECT_VENDOR_PROTOCOL_IMPL
+            prompt "Protocol implementation for Bluetooth vendor HID"
+            default BT_CONNECT_VENDOR_YKB_PROTOCOL
+
+            config BT_CONNECT_VENDOR_YKB_PROTOCOL
+                bool "Use YKB protocol"
+
+        endchoice
+
+    endif # BT_CONNECT_VENDOR
+
     configdefault BT_MAX_CONN
         default 1
 
@@ -42,6 +85,9 @@ if BT_CONNECT
     configdefault BT_GATT_CHRC_POOL_SIZE
         default 20
 
+    configdefault BT_HIDS_ATTR_MAX
+        default 40
+
     configdefault BT_DIS_MANUF_NAME_STR
         default "YarmanKeyboards"
 
@@ -57,5 +103,5 @@ if BT_CONNECT
     choice BT_HIDS_DEFAULT_PERM
         default BT_HIDS_DEFAULT_PERM_RW_ENCRYPT
     endchoice
-    
+
 endif # BT_CONNECT

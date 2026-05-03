@@ -167,7 +167,7 @@ KSCAN_CB_DEFINE(ykb_backlight) = {
 
 static bool init_success = false;
 
-static void on_settings_update(kb_settings_t *settings) {
+static void on_settings_update(const kb_settings_t *settings) {
 
     k_mutex_lock(&ykb_bl_mut, K_FOREVER);
 
@@ -193,7 +193,7 @@ static void on_settings_update(kb_settings_t *settings) {
     uint32_t start_offset = settings->backlight.offsets[cur_idx];
     uint32_t end_offset = settings->backlight.offsets[cur_idx + 1];
 
-    char *script_name = settings->backlight.names[cur_idx];
+    const char *script_name = settings->backlight.names[cur_idx];
     LOG_INF("Loading lumiscript '%s'", script_name);
     int err = lumiscript_load(&settings->backlight.backlight_data[start_offset],
                               end_offset - start_offset);

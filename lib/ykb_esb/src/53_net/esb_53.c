@@ -22,8 +22,8 @@ LOG_MODULE_REGISTER(ykb_esb_rpc, CONFIG_YKB_ESB_LOG_LEVEL);
 /* See rpc_app.c (in the cpuapp/ dir) for an explanation. */
 NRF_RPC_IPC_TRANSPORT(esb_group_tr, DEVICE_DT_GET(DT_NODELABEL(ipc0)),
                       "nrf_rpc_ept");
-NRF_RPC_GROUP_DEFINE(esb_group, "esb_group_id", &esb_group_tr, NULL, NULL,
-                     NULL);
+NRF_RPC_GROUP_DEFINE_NOWAIT(esb_group, "esb_group_id", &esb_group_tr, NULL,
+                            NULL, NULL, NULL, false);
 
 static void rpc_esb_event_send(uint32_t evt_type, uint8_t *rx_payload_buf,
                                uint32_t rx_payload_length);

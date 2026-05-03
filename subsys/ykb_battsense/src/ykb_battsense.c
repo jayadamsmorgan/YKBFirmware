@@ -161,7 +161,7 @@ static int ykb_battsense_init(void) {
 
 SYS_INIT(ykb_battsense_init, POST_KERNEL, CONFIG_YKB_BATTSENSE_INIT_PRIORITY);
 
-static void on_settings_update(kb_settings_t *settings) {
+static void on_settings_update(const kb_settings_t *settings) {
     k_mutex_lock(&battsense_mut, K_FOREVER);
     thread_sleep_ms = settings->battsense.thread_sleep_ms;
     low_threshold = settings->battsense.low_threshold;
@@ -170,3 +170,15 @@ static void on_settings_update(kb_settings_t *settings) {
 }
 
 ON_SETTINGS_UPDATE_DEFINE(ykb_battsense, on_settings_update);
+
+int ykb_battsense_get_state(ykb_battsense_state_t *out_state) {
+    if (!out_state) {
+        return -EINVAL;
+    }
+
+    k_mutex_lock(&battsense_mut, K_FOREVER);
+    *out_state = state;
+    k_mutex_unlock(&battsense_mut);
+
+    return 0;
+}

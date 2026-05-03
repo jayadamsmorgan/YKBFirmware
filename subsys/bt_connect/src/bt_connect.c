@@ -1,26 +1,17 @@
-#include <assert.h>
-#include <soc.h>
-#include <stddef.h>
-#include <string.h>
-#include <zephyr/drivers/gpio.h>
-#include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
-#include <zephyr/spinlock.h>
-#include <zephyr/sys/byteorder.h>
-#include <zephyr/sys/printk.h>
-#include <zephyr/types.h>
+#include <subsys/bt_connect.h>
 
-#include <zephyr/settings/settings.h>
+#include "hid_devices/hid_devices.h"
 
-#include <zephyr/bluetooth/bluetooth.h>
+#include <subsys/ykb_battsense.h>
+
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/hci.h>
-#include <zephyr/bluetooth/uuid.h>
-
-#include <bluetooth/services/hids.h>
 #include <zephyr/bluetooth/services/bas.h>
 #include <zephyr/bluetooth/services/dis.h>
+#include <zephyr/logging/log.h>
+#include <zephyr/settings/settings.h>
+#include <zephyr/sys/util.h>
 
 LOG_MODULE_REGISTER(bt_connect, CONFIG_BT_CONNECT_LOG_LEVEL);
 
@@ -29,78 +20,32 @@ LOG_MODULE_REGISTER(bt_connect, CONFIG_BT_CONNECT_LOG_LEVEL);
 
 #define BASE_USB_HID_SPEC_VERSION 0x0101
 
-#define OUTPUT_REPORT_MAX_LEN 1
-#define OUTPUT_REPORT_BIT_MASK_CAPS_LOCK 0x02
-#define INPUT_REP_KEYS_REF_ID 0
-#define OUTPUT_REP_KEYS_REF_ID 0
-#define MODIFIER_KEY_POS 0
-#define SHIFT_KEY_CODE 0x02
-#define SCAN_CODE_POS 2
-#define KEYS_MAX_LEN (INPUT_REPORT_KEYS_MAX_LEN - SCAN_CODE_POS)
+#define BT_CONNECT_KBD_INPUT_REPORT_SIZE sizeof(hid_kb_report_t)
+#define BT_CONNECT_KBD_OUTPUT_REPORT_SIZE 1U
+#define BT_CONNECT_MOUSE_INPUT_REPORT_SIZE sizeof(hid_mouse_report_t)
+#define BT_CONNECT_VENDOR_INPUT_REPORT_SIZE                                  \
+    CONFIG_BT_CONNECT_MAX_VENDOR_IN_REPORT_SIZE
+#define BT_CONNECT_VENDOR_OUTPUT_REPORT_SIZE                                 \
+    CONFIG_BT_CONNECT_MAX_VENDOR_OUT_REPORT_SIZE
+#define BT_CONNECT_VENDOR_FEATURE_REPORT_SIZE                                \
+    CONFIG_BT_CONNECT_MAX_VENDOR_IN_REPORT_SIZE
 
-#define ADV_LED_BLINK_INTERVAL 1000
+BT_HIDS_DEF(
+    hids_obj,
+#if CONFIG_BT_CONNECT_KBD
+    BT_CONNECT_KBD_INPUT_REPORT_SIZE, BT_CONNECT_KBD_OUTPUT_REPORT_SIZE,
+#endif
+#if CONFIG_BT_CONNECT_MOUSE
+    BT_CONNECT_MOUSE_INPUT_REPORT_SIZE,
+#endif
+#if CONFIG_BT_CONNECT_VENDOR
+    BT_CONNECT_VENDOR_OUTPUT_REPORT_SIZE, BT_CONNECT_VENDOR_INPUT_REPORT_SIZE,
+    BT_CONNECT_VENDOR_FEATURE_REPORT_SIZE,
+#endif
+);
 
-#define ADV_STATUS_LED DK_LED1
-#define CON_STATUS_LED DK_LED2
-#define LED_CAPS_LOCK DK_LED3
-#define NFC_LED DK_LED4
-#define KEY_TEXT_MASK DK_BTN1_MSK
-#define KEY_SHIFT_MASK DK_BTN2_MSK
-#define KEY_ADV_MASK DK_BTN4_MSK
-
-/* Key used to accept or reject passkey value */
-#define KEY_PAIRING_ACCEPT DK_BTN1_MSK
-#define KEY_PAIRING_REJECT DK_BTN2_MSK
-
-/* HIDs queue elements. */
-#define HIDS_QUEUE_SIZE 10
-
-/* ********************* */
-/* Buttons configuration */
-
-/* Note: The configuration below is the same as BOOT mode configuration
- * This simplifies the code as the BOOT mode is the same as REPORT mode.
- * Changing this configuration would require separate implementation of
- * BOOT mode report generation.
- */
-#define KEY_CTRL_CODE_MIN 224 /* Control key codes - required 8 of them */
-#define KEY_CTRL_CODE_MAX 231 /* Control key codes - required 8 of them */
-#define KEY_CODE_MIN 0        /* Normal key codes */
-#define KEY_CODE_MAX 101      /* Normal key codes */
-#define KEY_PRESS_MAX                                                          \
-    6 /* Maximum number of non-control keys                                    \
-       * pressed simultaneously                                                \
-       */
-
-/* Number of bytes in key report
- *
- * 1B - control keys
- * 1B - reserved
- * rest - non-control keys
- */
-#define INPUT_REPORT_KEYS_MAX_LEN (1 + 1 + KEY_PRESS_MAX)
-
-/* Current report map construction requires exactly 8 buttons */
-BUILD_ASSERT((KEY_CTRL_CODE_MAX - KEY_CTRL_CODE_MIN) + 1 == 8);
-
-/* OUT report internal indexes.
- *
- * This is a position in internal report table and is not related to
- * report ID.
- */
-enum { OUTPUT_REP_KEYS_IDX = 0 };
-
-/* INPUT report internal indexes.
- *
- * This is a position in internal report table and is not related to
- * report ID.
- */
-enum { INPUT_REP_KEYS_IDX = 0 };
-
-/* HIDS instance. */
-BT_HIDS_DEF(hids_obj, OUTPUT_REPORT_MAX_LEN, INPUT_REPORT_KEYS_MAX_LEN);
-
-static volatile bool is_adv;
+static struct bt_connect_conn_state
+    conn_states[CONFIG_BT_HIDS_MAX_CLIENT_COUNT];
 
 static const struct bt_data ad[] = {
     BT_DATA_BYTES(BT_DATA_GAP_APPEARANCE,
@@ -115,23 +60,90 @@ static const struct bt_data sd[] = {
     BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
 };
 
-struct conn_mode {
-    struct bt_conn *conn;
-    bool in_boot_mode;
-} conn_mode[CONFIG_BT_HIDS_MAX_CLIENT_COUNT];
+static bool is_advertising;
+static uint8_t assembled_report_map[CONFIG_BT_CONNECT_REPORT_MAP_MAX_SIZE];
+static size_t assembled_report_map_size;
+static bool battery_notifications_ready;
+static bool battery_level_pending_valid;
+static uint8_t pending_battery_level;
 
-#if CONFIG_NFC_OOB_PAIRING
-static struct k_work adv_work;
+static void publish_pending_battery_level(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(battery_level_publish_work,
+                               publish_pending_battery_level);
+
+#if CONFIG_BT_CONNECT_KBD
+int bt_connect_keyboard_send_report(const hid_kb_report_t *report);
+#endif
+#if CONFIG_BT_CONNECT_MOUSE
+int bt_connect_mouse_send_report(const hid_mouse_report_t *report);
 #endif
 
-static struct k_work pairing_work;
-struct pairing_data_mitm {
-    struct bt_conn *conn;
-    unsigned int passkey;
-};
+struct bt_hids *bt_connect_hids_obj(void) { return &hids_obj; }
 
-K_MSGQ_DEFINE(mitm_queue, sizeof(struct pairing_data_mitm),
-              CONFIG_BT_HIDS_MAX_CLIENT_COUNT, 4);
+static void publish_pending_battery_level(struct k_work *work) {
+    ARG_UNUSED(work);
+
+    if (!battery_notifications_ready || !battery_level_pending_valid) {
+        return;
+    }
+
+    int err = bt_bas_set_battery_level(MIN(pending_battery_level, 100U));
+    if (err) {
+        LOG_ERR("Failed to update BAS battery level (%d)", err);
+        return;
+    }
+
+    battery_level_pending_valid = false;
+}
+
+void bt_connect_foreach_conn(bt_connect_conn_iter_fn_t fn, void *user_data) {
+    if (!fn) {
+        return;
+    }
+
+    for (size_t i = 0; i < ARRAY_SIZE(conn_states); ++i) {
+        if (!conn_states[i].conn) {
+            continue;
+        }
+
+        int err = fn(&conn_states[i], user_data);
+        if (err) {
+            if (err == -EACCES) {
+                LOG_WRN("BLE HID report skipped: peer not subscribed yet");
+            } else if (err == -ENOTCONN) {
+                LOG_WRN("BLE HID report skipped: peer disconnected");
+            } else {
+                LOG_ERR("BLE HID connection callback failed (%d)", err);
+            }
+        }
+    }
+}
+
+static bool any_connected(void) {
+    for (size_t i = 0; i < ARRAY_SIZE(conn_states); ++i) {
+        if (conn_states[i].conn != NULL) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void notify_connected(const bt_addr_le_t *addr) {
+    STRUCT_SECTION_FOREACH(bt_connect_cb, cb) {
+        if (cb->on_connect) {
+            cb->on_connect(addr);
+        }
+    }
+}
+
+static void notify_disconnected(const bt_addr_le_t *addr) {
+    STRUCT_SECTION_FOREACH(bt_connect_cb, cb) {
+        if (cb->on_disconnect) {
+            cb->on_disconnect(addr);
+        }
+    }
+}
 
 static void advertising_start(void) {
     int err;
@@ -140,175 +152,143 @@ static void advertising_start(void) {
                         BT_GAP_ADV_FAST_INT_MAX_2, NULL);
 
     err = bt_le_adv_start(adv_param, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
-    if (err) {
-        if (err == -EALREADY) {
-            printk("Advertising continued\n");
-        } else {
-            printk("Advertising failed to start (err %d)\n", err);
-        }
-
+    if (err && err != -EALREADY) {
+        LOG_ERR("Advertising failed to start (err %d)", err);
         return;
     }
 
-    is_adv = true;
-    printk("Advertising successfully started\n");
+    is_advertising = true;
+    LOG_INF("Advertising started");
 }
 
-#if CONFIG_NFC_OOB_PAIRING
-static void delayed_advertising_start(struct k_work *work) {
-    advertising_start();
+static void maybe_restart_advertising(void) {
+    if (!any_connected() && !is_advertising) {
+        advertising_start();
+    }
 }
 
-void nfc_field_detected(void) {
-    dk_set_led_on(NFC_LED);
-
-    for (int i = 0; i < CONFIG_BT_HIDS_MAX_CLIENT_COUNT; i++) {
-        if (!conn_mode[i].conn) {
-            k_work_submit(&adv_work);
-            break;
+static struct bt_connect_conn_state *find_conn_state(struct bt_conn *conn) {
+    for (size_t i = 0; i < ARRAY_SIZE(conn_states); ++i) {
+        if (conn_states[i].conn == conn) {
+            return &conn_states[i];
         }
     }
+
+    return NULL;
 }
 
-void nfc_field_lost(void) { dk_set_led_off(NFC_LED); }
-#endif
+static struct bt_connect_conn_state *alloc_conn_state(void) {
+    for (size_t i = 0; i < ARRAY_SIZE(conn_states); ++i) {
+        if (conn_states[i].conn == NULL) {
+            return &conn_states[i];
+        }
+    }
 
-static void num_comp_reply(bool accept) {
-    struct pairing_data_mitm pairing_data;
-    struct bt_conn *conn;
+    return NULL;
+}
 
-    if (k_msgq_get(&mitm_queue, &pairing_data, K_NO_WAIT) != 0) {
+static void hids_pm_evt_handler(enum bt_hids_pm_evt evt, struct bt_conn *conn) {
+    struct bt_connect_conn_state *state = find_conn_state(conn);
+
+    if (!state) {
+        LOG_WRN("HIDS protocol mode event for unknown connection");
         return;
     }
 
-    conn = pairing_data.conn;
+    switch (evt) {
+    case BT_HIDS_PM_EVT_BOOT_MODE_ENTERED:
+        state->in_boot_mode = true;
+        break;
 
-    if (accept) {
-        bt_conn_auth_passkey_confirm(conn);
-        printk("Numeric Match, conn %p\n", conn);
-    } else {
-        bt_conn_auth_cancel(conn);
-        printk("Numeric Reject, conn %p\n", conn);
+    case BT_HIDS_PM_EVT_REPORT_MODE_ENTERED:
+        state->in_boot_mode = false;
+        break;
+
+    default:
+        break;
     }
-
-    bt_conn_unref(pairing_data.conn);
-
-    if (k_msgq_num_used_get(&mitm_queue)) {
-        k_work_submit(&pairing_work);
-    }
-}
-
-static void pairing_process(struct k_work *work) {
-    int err;
-    struct pairing_data_mitm pairing_data;
-
-    char addr[BT_ADDR_LE_STR_LEN];
-
-    err = k_msgq_peek(&mitm_queue, &pairing_data);
-    if (err) {
-        return;
-    }
-
-    bt_addr_le_to_str(bt_conn_get_dst(pairing_data.conn), addr, sizeof(addr));
-
-    printk("Passkey for %s: %06u\n", addr, pairing_data.passkey);
-
-    // if (IS_ENABLED(CONFIG_SOC_SERIES_NRF54HX) ||
-    //     IS_ENABLED(CONFIG_SOC_SERIES_NRF54LX)) {
-    //     printk("Press Button 0 to confirm, Button 1 to reject.\n");
-    // } else {
-    //     printk("Press Button 1 to confirm, Button 2 to reject.\n");
-    // }
-    num_comp_reply(true);
 }
 
 static void connected(struct bt_conn *conn, uint8_t err) {
-    char addr[BT_ADDR_LE_STR_LEN];
+    struct bt_connect_conn_state *state;
+    bt_addr_le_t addr;
+    int sec_err;
 
-    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+    bt_addr_le_copy(&addr, bt_conn_get_dst(conn));
 
     if (err) {
-        printk("Failed to connect to %s 0x%02x %s\n", addr, err,
-               bt_hci_err_to_str(err));
+        LOG_ERR("Failed to connect (%d)", err);
         return;
     }
 
-    printk("Connected %s\n", addr);
+    state = alloc_conn_state();
+    if (!state) {
+        LOG_ERR("No free Bluetooth connection slots");
+        bt_conn_disconnect(conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+        return;
+    }
 
     err = bt_hids_connected(&hids_obj, conn);
-
     if (err) {
-        printk("Failed to notify HID service about connection\n");
+        LOG_ERR("Failed to notify HIDS about connection (%d)", err);
         return;
     }
 
-    for (size_t i = 0; i < CONFIG_BT_HIDS_MAX_CLIENT_COUNT; i++) {
-        if (!conn_mode[i].conn) {
-            conn_mode[i].conn = conn;
-            conn_mode[i].in_boot_mode = false;
-            break;
-        }
+    state->conn = bt_conn_ref(conn);
+    state->in_boot_mode = false;
+    is_advertising = false;
+    battery_notifications_ready = false;
+
+    sec_err = bt_conn_set_security(conn, BT_SECURITY_L2);
+    if (sec_err && sec_err != -EALREADY) {
+        LOG_WRN("Failed to request Bluetooth security level 2 (%d)", sec_err);
     }
 
-#if CONFIG_NFC_OOB_PAIRING == 0
-    for (size_t i = 0; i < CONFIG_BT_HIDS_MAX_CLIENT_COUNT; i++) {
-        if (!conn_mode[i].conn) {
-            advertising_start();
-            return;
-        }
-    }
-#endif
-    is_adv = false;
+    notify_connected(&addr);
+    LOG_INF("Bluetooth connected");
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason) {
+    struct bt_connect_conn_state *state = find_conn_state(conn);
+    bt_addr_le_t addr;
     int err;
-    bool is_any_dev_connected = false;
-    char addr[BT_ADDR_LE_STR_LEN];
 
-    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-    printk("Disconnected from %s, reason 0x%02x %s\n", addr, reason,
-           bt_hci_err_to_str(reason));
+    bt_addr_le_copy(&addr, bt_conn_get_dst(conn));
 
     err = bt_hids_disconnected(&hids_obj, conn);
-
     if (err) {
-        printk("Failed to notify HID service about disconnection\n");
+        LOG_ERR("Failed to notify HIDS about disconnection (%d)", err);
     }
 
-    for (size_t i = 0; i < CONFIG_BT_HIDS_MAX_CLIENT_COUNT; i++) {
-        if (conn_mode[i].conn == conn) {
-            conn_mode[i].conn = NULL;
-        } else {
-            if (conn_mode[i].conn) {
-                is_any_dev_connected = true;
-            }
-        }
+    if (state) {
+        bt_conn_unref(state->conn);
+        state->conn = NULL;
+        state->in_boot_mode = false;
     }
 
-#if CONFIG_NFC_OOB_PAIRING
-    if (is_adv) {
-        printk("Advertising stopped after disconnect\n");
-        bt_le_adv_stop();
-        is_adv = false;
-    }
-#else
-    advertising_start();
-#endif
+    battery_notifications_ready = false;
+    (void)k_work_cancel_delayable(&battery_level_publish_work);
+
+    notify_disconnected(&addr);
+    LOG_INF("Bluetooth disconnected (reason 0x%02x)", reason);
+
+    maybe_restart_advertising();
 }
 
 static void security_changed(struct bt_conn *conn, bt_security_t level,
                              enum bt_security_err err) {
-    char addr[BT_ADDR_LE_STR_LEN];
+    ARG_UNUSED(conn);
 
-    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+    if (err) {
+        LOG_WRN("Security failed, level %u err %d", level, err);
+        return;
+    }
 
-    if (!err) {
-        printk("Security changed: %s level %u\n", addr, level);
-    } else {
-        printk("Security failed: %s level %u err %d %s\n", addr, level, err,
-               bt_security_err_to_str(err));
+    LOG_INF("Security changed, level %u", level);
+
+    if (level >= BT_SECURITY_L2) {
+        battery_notifications_ready = true;
+        k_work_reschedule(&battery_level_publish_work, K_MSEC(500));
     }
 }
 
@@ -318,345 +298,195 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
     .security_changed = security_changed,
 };
 
-static void caps_lock_handler(const struct bt_hids_rep *rep) {
-    uint8_t report_val =
-        ((*rep->data) & OUTPUT_REPORT_BIT_MASK_CAPS_LOCK) ? 1 : 0;
-    printk("CAPS: %d", report_val);
-}
-
-static void hids_outp_rep_handler(struct bt_hids_rep *rep, struct bt_conn *conn,
-                                  bool write) {
-    char addr[BT_ADDR_LE_STR_LEN];
-
-    if (!write) {
-        printk("Output report read\n");
-        return;
-    };
-
-    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-    printk("Output report has been received %s\n", addr);
-    caps_lock_handler(rep);
-}
-
-static void hids_boot_kb_outp_rep_handler(struct bt_hids_rep *rep,
-                                          struct bt_conn *conn, bool write) {
-    char addr[BT_ADDR_LE_STR_LEN];
-
-    if (!write) {
-        printk("Output report read\n");
-        return;
-    };
-
-    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-    printk("Boot Keyboard Output report has been received %s\n", addr);
-    caps_lock_handler(rep);
-}
-
-static void hids_pm_evt_handler(enum bt_hids_pm_evt evt, struct bt_conn *conn) {
-    char addr[BT_ADDR_LE_STR_LEN];
-    size_t i;
-
-    for (i = 0; i < CONFIG_BT_HIDS_MAX_CLIENT_COUNT; i++) {
-        if (conn_mode[i].conn == conn) {
-            break;
-        }
-    }
-
-    if (i >= CONFIG_BT_HIDS_MAX_CLIENT_COUNT) {
-        printk("Cannot find connection handle when processing PM");
-        return;
-    }
-
-    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-    switch (evt) {
-    case BT_HIDS_PM_EVT_BOOT_MODE_ENTERED:
-        printk("Boot mode entered %s\n", addr);
-        conn_mode[i].in_boot_mode = true;
-        break;
-
-    case BT_HIDS_PM_EVT_REPORT_MODE_ENTERED:
-        printk("Report mode entered %s\n", addr);
-        conn_mode[i].in_boot_mode = false;
-        break;
-
-    default:
-        break;
-    }
-}
-
-static void hid_init(void) {
-    int err;
-    struct bt_hids_init_param hids_init_obj = {0};
-    struct bt_hids_inp_rep *hids_inp_rep;
-    struct bt_hids_outp_feat_rep *hids_outp_rep;
-
-    static const uint8_t report_map[] = {
-        0x05, 0x01, /* Usage Page (Generic Desktop) */
-        0x09, 0x06, /* Usage (Keyboard) */
-        0xA1, 0x01, /* Collection (Application) */
-
-    /* Keys */
-#if INPUT_REP_KEYS_REF_ID
-        0x85, INPUT_REP_KEYS_REF_ID,
-#endif
-        0x05, 0x07, /* Usage Page (Key Codes) */
-        0x19, 0xe0, /* Usage Minimum (224) */
-        0x29, 0xe7, /* Usage Maximum (231) */
-        0x15, 0x00, /* Logical Minimum (0) */
-        0x25, 0x01, /* Logical Maximum (1) */
-        0x75, 0x01, /* Report Size (1) */
-        0x95, 0x08, /* Report Count (8) */
-        0x81, 0x02, /* Input (Data, Variable, Absolute) */
-
-        0x95, 0x01, /* Report Count (1) */
-        0x75, 0x08, /* Report Size (8) */
-        0x81, 0x01, /* Input (Constant) reserved byte(1) */
-
-        0x95, 0x06, /* Report Count (6) */
-        0x75, 0x08, /* Report Size (8) */
-        0x15, 0x00, /* Logical Minimum (0) */
-        0x25, 0x65, /* Logical Maximum (101) */
-        0x05, 0x07, /* Usage Page (Key codes) */
-        0x19, 0x00, /* Usage Minimum (0) */
-        0x29, 0x65, /* Usage Maximum (101) */
-        0x81, 0x00, /* Input (Data, Array) Key array(6 bytes) */
-
-    /* LED */
-#if OUTPUT_REP_KEYS_REF_ID
-        0x85, OUTPUT_REP_KEYS_REF_ID,
-#endif
-        0x95, 0x05, /* Report Count (5) */
-        0x75, 0x01, /* Report Size (1) */
-        0x05, 0x08, /* Usage Page (Page# for LEDs) */
-        0x19, 0x01, /* Usage Minimum (1) */
-        0x29, 0x05, /* Usage Maximum (5) */
-        0x91, 0x02, /* Output (Data, Variable, Absolute), */
-        /* Led report */
-        0x95, 0x01, /* Report Count (1) */
-        0x75, 0x03, /* Report Size (3) */
-        0x91, 0x01, /* Output (Data, Variable, Absolute), */
-        /* Led report padding */
-
-        0xC0 /* End Collection (Application) */
-    };
-
-    hids_init_obj.rep_map.data = report_map;
-    hids_init_obj.rep_map.size = sizeof(report_map);
-
-    hids_init_obj.info.bcd_hid = BASE_USB_HID_SPEC_VERSION;
-    hids_init_obj.info.b_country_code = 0x00;
-    hids_init_obj.info.flags =
-        (BT_HIDS_REMOTE_WAKE | BT_HIDS_NORMALLY_CONNECTABLE);
-
-    hids_inp_rep =
-        &hids_init_obj.inp_rep_group_init.reports[INPUT_REP_KEYS_IDX];
-    hids_inp_rep->size = INPUT_REPORT_KEYS_MAX_LEN;
-    hids_inp_rep->id = INPUT_REP_KEYS_REF_ID;
-    hids_init_obj.inp_rep_group_init.cnt++;
-
-    hids_outp_rep =
-        &hids_init_obj.outp_rep_group_init.reports[OUTPUT_REP_KEYS_IDX];
-    hids_outp_rep->size = OUTPUT_REPORT_MAX_LEN;
-    hids_outp_rep->id = OUTPUT_REP_KEYS_REF_ID;
-    hids_outp_rep->handler = hids_outp_rep_handler;
-    hids_init_obj.outp_rep_group_init.cnt++;
-
-    hids_init_obj.is_kb = true;
-    hids_init_obj.boot_kb_outp_rep_handler = hids_boot_kb_outp_rep_handler;
-    hids_init_obj.pm_evt_handler = hids_pm_evt_handler;
-
-    err = bt_hids_init(&hids_obj, &hids_init_obj);
-    __ASSERT(err == 0, "HIDS initialization failed\n");
-}
-
-static void auth_passkey_display(struct bt_conn *conn, unsigned int passkey) {
-    char addr[BT_ADDR_LE_STR_LEN];
-
-    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-    printk("Passkey for %s: %06u\n", addr, passkey);
-}
-
-static void auth_passkey_confirm(struct bt_conn *conn, unsigned int passkey) {
-    int err;
-
-    struct pairing_data_mitm pairing_data;
-
-    pairing_data.conn = bt_conn_ref(conn);
-    pairing_data.passkey = passkey;
-
-    err = k_msgq_put(&mitm_queue, &pairing_data, K_NO_WAIT);
-    if (err) {
-        printk("Pairing queue is full. Purge previous data.\n");
-    }
-
-    /* In the case of multiple pairing requests, trigger
-     * pairing confirmation which needed user interaction only
-     * once to avoid display information about all devices at
-     * the same time. Passkey confirmation for next devices will
-     * be proccess from queue after handling the earlier ones.
-     */
-    if (k_msgq_num_used_get(&mitm_queue) == 1) {
-        k_work_submit(&pairing_work);
-    }
-}
-
 static void auth_cancel(struct bt_conn *conn) {
     char addr[BT_ADDR_LE_STR_LEN];
 
     bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-    printk("Pairing cancelled: %s\n", addr);
+    LOG_INF("Pairing cancelled: %s", addr);
 }
-
-#if CONFIG_NFC_OOB_PAIRING
-static void auth_oob_data_request(struct bt_conn *conn,
-                                  struct bt_conn_oob_info *info) {
-    int err;
-    struct bt_le_oob *oob_local = app_nfc_oob_data_get();
-
-    printk("LESC OOB data requested\n");
-
-    if (info->type != BT_CONN_OOB_LE_SC) {
-        printk("Only LESC pairing supported\n");
-        return;
-    }
-
-    if (info->lesc.oob_config != BT_CONN_OOB_LOCAL_ONLY) {
-        printk("LESC OOB config not supported\n");
-        return;
-    }
-
-    /* Pass only local OOB data. */
-    err = bt_le_oob_set_sc_data(conn, &oob_local->le_sc_data, NULL);
-    if (err) {
-        printk("Error while setting OOB data: %d\n", err);
-    } else {
-        printk("Successfully provided LESC OOB data\n");
-    }
-}
-#endif
 
 static void pairing_complete(struct bt_conn *conn, bool bonded) {
     char addr[BT_ADDR_LE_STR_LEN];
 
     bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-    printk("Pairing completed: %s, bonded: %d\n", addr, bonded);
+    LOG_INF("Pairing completed: %s, bonded: %d", addr, bonded);
 }
 
 static void pairing_failed(struct bt_conn *conn, enum bt_security_err reason) {
     char addr[BT_ADDR_LE_STR_LEN];
-    struct pairing_data_mitm pairing_data;
-
-    if (k_msgq_peek(&mitm_queue, &pairing_data) != 0) {
-        return;
-    }
-
-    if (pairing_data.conn == conn) {
-        bt_conn_unref(pairing_data.conn);
-        k_msgq_get(&mitm_queue, &pairing_data, K_NO_WAIT);
-    }
 
     bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-    printk("Pairing failed conn: %s, reason %d %s\n", addr, reason,
-           bt_security_err_to_str(reason));
+    LOG_WRN("Pairing failed: %s, reason %d", addr, reason);
 }
 
 static struct bt_conn_auth_cb conn_auth_callbacks = {
-    .passkey_display = auth_passkey_display,
-    .passkey_confirm = auth_passkey_confirm,
     .cancel = auth_cancel,
-#if CONFIG_NFC_OOB_PAIRING
-    .oob_data_request = auth_oob_data_request,
-#endif
 };
 
 static struct bt_conn_auth_info_cb conn_auth_info_callbacks = {
-    .pairing_complete = pairing_complete, .pairing_failed = pairing_failed};
+    .pairing_complete = pairing_complete,
+    .pairing_failed = pairing_failed,
+};
 
-/** @brief Function process keyboard state and sends it
- *
- *  @param pstate     The state to be sent
- *  @param boot_mode  Information if boot mode protocol is selected.
- *  @param conn       Connection handler
- *
- *  @return 0 on success or negative error code.
- */
-static int key_report_con_send(const struct keyboard_state *state,
-                               bool boot_mode, struct bt_conn *conn) {
-    int err = 0;
-    uint8_t data[INPUT_REPORT_KEYS_MAX_LEN];
-    uint8_t *key_data;
-    const uint8_t *key_state;
-    size_t n;
+void bt_connect_set_battery_level(uint8_t percentage) {
+    pending_battery_level = MIN(percentage, 100U);
+    battery_level_pending_valid = true;
 
-    data[0] = state->ctrl_keys_state;
-    data[1] = 0;
-    key_data = &data[2];
-    key_state = state->keys_state;
-
-    for (n = 0; n < KEY_PRESS_MAX; ++n) {
-        *key_data++ = *key_state++;
+    if (battery_notifications_ready) {
+        int err =
+            k_work_reschedule(&battery_level_publish_work, K_MSEC(50));
+        if (err < 0) {
+            LOG_ERR("Failed to schedule BAS update (%d)", err);
+        }
     }
-    if (boot_mode) {
-        err = bt_hids_boot_kb_inp_rep_send(&hids_obj, conn, data, sizeof(data),
-                                           NULL);
-    } else {
-        err = bt_hids_inp_rep_send(&hids_obj, conn, INPUT_REP_KEYS_IDX, data,
-                                   sizeof(data), NULL);
-    }
-    return err;
 }
 
-void bas_notify(void) {
-    uint8_t battery_level = bt_bas_get_battery_level();
-
-    battery_level--;
-
-    if (!battery_level) {
-        battery_level = 100U;
+void bt_connect_send_kb_report(const hid_kb_report_t *report) {
+#if CONFIG_BT_CONNECT_KBD
+    int err = bt_connect_keyboard_send_report(report);
+    if (err) {
+        LOG_ERR("Failed to send keyboard report over BLE (%d)", err);
     }
-
-    bt_bas_set_battery_level(battery_level);
+#else
+    ARG_UNUSED(report);
+#endif
 }
 
-int bt_setup(void) {
+void bt_connect_send_mouse_report(const hid_mouse_report_t *report) {
+#if CONFIG_BT_CONNECT_MOUSE
+    int err = bt_connect_mouse_send_report(report);
+    if (err) {
+        LOG_ERR("Failed to send mouse report over BLE (%d)", err);
+    }
+#else
+    ARG_UNUSED(report);
+#endif
+}
+
+static int assemble_report_map(void) {
+    assembled_report_map_size = 0;
+
+    STRUCT_SECTION_FOREACH(bt_connect_hid_report, report) {
+        if (!report->report_map || report->report_map_size == 0) {
+            continue;
+        }
+
+        if (assembled_report_map_size + report->report_map_size >
+            sizeof(assembled_report_map)) {
+            LOG_ERR("BLE HID report map too large after '%s'",
+                    report->name ? report->name : "unknown");
+            return -ENOMEM;
+        }
+
+        memcpy(&assembled_report_map[assembled_report_map_size],
+               report->report_map, report->report_map_size);
+        assembled_report_map_size += report->report_map_size;
+    }
+
+    return 0;
+}
+
+static int bt_connect_hid_init(void) {
+    struct bt_hids_init_param init = {0};
+    uint8_t input_count = 0;
+    uint8_t output_count = 0;
+    uint8_t feature_count = 0;
     int err;
 
-    printk("Starting Bluetooth Peripheral HIDS keyboard sample\n");
+    err = assemble_report_map();
+    if (err) {
+        return err;
+    }
+
+    init.rep_map.data = assembled_report_map;
+    init.rep_map.size = assembled_report_map_size;
+
+    init.info.bcd_hid = BASE_USB_HID_SPEC_VERSION;
+    init.info.b_country_code = 0x00;
+    init.info.flags = BT_HIDS_REMOTE_WAKE | BT_HIDS_NORMALLY_CONNECTABLE;
+    init.pm_evt_handler = hids_pm_evt_handler;
+
+    STRUCT_SECTION_FOREACH(bt_connect_hid_report, report) {
+        if (!report->append_init) {
+            continue;
+        }
+
+        err = report->append_init(&init, &input_count, &output_count,
+                                  &feature_count);
+        if (err) {
+            LOG_ERR("BLE HID contributor '%s' init failed (%d)",
+                    report->name ? report->name : "unknown", err);
+            return err;
+        }
+    }
+
+    init.inp_rep_group_init.cnt = input_count;
+    init.outp_rep_group_init.cnt = output_count;
+    init.feat_rep_group_init.cnt = feature_count;
+
+    err = bt_hids_init(&hids_obj, &init);
+    if (err) {
+        LOG_ERR("HIDS initialization failed (%d)", err);
+        return err;
+    }
+
+    return 0;
+}
+
+#if CONFIG_YKB_BATTSENSE
+static void on_battery_state_changed(ykb_battsense_state_t state) {
+    bt_connect_set_battery_level(state.percentage);
+}
+
+static YKB_BATTSENSE_DEFINE(bt_connect_battery_transport) = {
+    .on_state_changed = on_battery_state_changed,
+    .on_low_percentage = on_battery_state_changed,
+    .on_critical_percentage = on_battery_state_changed,
+};
+#endif
+
+static int bt_connect_init(void) {
+    int err;
 
     err = bt_conn_auth_cb_register(&conn_auth_callbacks);
     if (err) {
-        printk("Failed to register authorization callbacks.\n");
-        return -1;
+        LOG_ERR("Failed to register authorization callbacks (%d)", err);
+        return err;
     }
 
     err = bt_conn_auth_info_cb_register(&conn_auth_info_callbacks);
     if (err) {
-        printk("Failed to register authorization info callbacks.\n");
-        return -2;
+        LOG_ERR("Failed to register authorization info callbacks (%d)", err);
+        return err;
     }
 
-    hid_init();
+    err = bt_connect_hid_init();
+    if (err) {
+        return err;
+    }
 
     err = bt_enable(NULL);
     if (err) {
-        printk("Bluetooth init failed (err %d)\n", err);
-        return -3;
+        LOG_ERR("Bluetooth init failed (err %d)", err);
+        return err;
     }
-
-    printk("Bluetooth initialized\n");
 
     if (IS_ENABLED(CONFIG_SETTINGS)) {
         settings_load();
     }
 
-    advertising_start();
+#if CONFIG_YKB_BATTSENSE
+    ykb_battsense_state_t state;
 
-    k_work_init(&pairing_work, pairing_process);
+    err = ykb_battsense_get_state(&state);
+    if (!err) {
+        bt_connect_set_battery_level(state.percentage);
+    }
+#endif
+
+    advertising_start();
 
     return 0;
 }
+
+SYS_INIT(bt_connect_init, POST_KERNEL, CONFIG_BT_CONNECT_INIT_PRIORITY);

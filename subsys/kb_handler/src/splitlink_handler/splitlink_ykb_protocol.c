@@ -118,11 +118,10 @@ void rx_slot_work_handler(struct k_work *work) {
 #endif // CONFIG_KB_HANDLER_SPLITLINK_MASTER
 #if CONFIG_KB_HANDLER_SPLITLINK_SLAVE
     if (slot->id == SETTINGS_SLOT_ID) {
-        kb_settings_t settings;
-        memcpy(&settings, slot->data, slot->rx.total_len);
+        const kb_settings_t *settings = (const kb_settings_t *)slot->data;
+        splitlink_handler_settings_received(settings);
         ykb_protocol_rx_reset(&slot->rx);
         slot->state = RX_SLOT_EMPTY;
-        splitlink_handler_settings_received(&settings);
         return;
     }
 #endif // CONFIG_KB_HANDLER_SPLITLINK_SLAVE
@@ -258,7 +257,7 @@ void splitlink_handler_send_values(uint16_t *values, uint16_t count) {
 #endif // CONFIG_KB_HANDLER_SPLITLINK_SLAVE
 
 #if CONFIG_KB_HANDLER_SPLITLINK_MASTER
-void splitlink_handler_send_settings(kb_settings_t *settings) {
+void splitlink_handler_send_settings(const kb_settings_t *settings) {
     if (!settings) {
         LOG_ERR("splitlink_handler_send_settings: settings null");
         return;
@@ -285,7 +284,7 @@ __weak void splitlink_handler_values_received(uint16_t *values,
                                               uint16_t count) {}
 #endif // CONFIG_KB_HANDLER_SPLITLINK_MASTER
 #if CONFIG_KB_HANDLER_SPLITLINK_SLAVE
-__weak void splitlink_handler_settings_received(kb_settings_t *settings) {}
+__weak void splitlink_handler_settings_received(const kb_settings_t *settings) {}
 #endif // CONFIG_KB_HANDLER_SPLITLINK_SLAVE
 __weak void splitlink_handler_on_connect() {}
 __weak void splitlink_handler_on_disconnect() {}

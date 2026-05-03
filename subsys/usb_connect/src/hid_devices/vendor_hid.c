@@ -1,6 +1,6 @@
 #include "hid_devices.h"
-#include "vendor_hid_protocol.h"
 
+#include <lib/vendor_hid_protocol.h>
 #include <subsys/kb_handler.h>
 #include <subsys/usb_connect.h>
 
@@ -47,10 +47,23 @@ static const uint8_t hid_vendor_report_desc[] = {
 
 static const struct device *hid_vendor_dev =
     DEVICE_DT_GET(DT_NODELABEL(hid_vendor));
+static vendor_hid_protocol_ctx_t vendor_protocol_ctx;
 
 static atomic_bool __ready;
 static uint32_t __duration;
 static atomic_bool boot_mode;
+
+static int usb_vendor_send_packet(const uint8_t *data, size_t len,
+                                  void *user_data) {
+    ARG_UNUSED(user_data);
+
+    int err = hid_device_submit_report(hid_vendor_dev, len, data);
+    if (err) {
+        LOG_ERR("hid_device_submit_report (vendor): %d", err);
+    }
+
+    return err;
+}
 
 static void iface_ready(const struct device *dev, const bool ready) {
     LOG_INF("HID device %s interface is %s", dev->name,
@@ -82,7 +95,7 @@ static int set_report(const struct device *dev, const uint8_t type,
         return -ENOTSUP;
     }
 
-    return vendor_hid_protocol_parse(buf, len);
+    return vendor_hid_protocol_parse(&vendor_protocol_ctx, buf, len);
 }
 
 static void set_idle(const struct device *dev, const uint8_t id,
@@ -118,14 +131,23 @@ static struct hid_device_ops ops = {
     .output_report = output_report,
 };
 
-int usb_connect_init_vendor_hid(void) {
+static int usb_connect_init_vendor_hid(void) {
+    int err;
+
     if (!device_is_ready(hid_vendor_dev)) {
         LOG_ERR("hid_vendor not ready");
         return -EIO;
     }
 
-    int err = hid_device_register(hid_vendor_dev, hid_vendor_report_desc,
-                                  sizeof(hid_vendor_report_desc), &ops);
+    err = vendor_hid_protocol_init(&vendor_protocol_ctx, usb_vendor_send_packet,
+                                   NULL);
+    if (err) {
+        LOG_ERR("vendor_hid_protocol_init: %d", err);
+        return err;
+    }
+
+    err = hid_device_register(hid_vendor_dev, hid_vendor_report_desc,
+                              sizeof(hid_vendor_report_desc), &ops);
     if (err) {
         LOG_ERR("hid_vendor register: %d", err);
         return err;
@@ -134,30 +156,4 @@ int usb_connect_init_vendor_hid(void) {
     return 0;
 }
 
-// vendor_hid_protocol
-
-static FEATURES_DEFINE(features);
-static kb_settings_t settings_snap;
-
-device_features *vendor_hid_protocol_get_features() { return &features; }
-
-void vendor_hid_protocol_get_values(uint16_t *values, uint16_t count) {
-    kb_handler_get_values(values, count);
-}
-
-kb_settings_t *vendor_hid_protocol_get_settings() {
-    int err = kb_settings_get(&settings_snap);
-    if (err) {
-        LOG_ERR("kb_settings_get: %d", err);
-        return NULL;
-    }
-    return &settings_snap;
-}
-
-int vendor_hid_protocol_set_settings(kb_settings_t *settings) {
-    int err = kb_settings_apply(settings);
-    if (err) {
-        LOG_ERR("kb_settings_apply: %d", err);
-    }
-    return err;
-}
+USB_CONNECT_REGISTER_HID_DEVICE(usb_vendor, usb_connect_init_vendor_hid);

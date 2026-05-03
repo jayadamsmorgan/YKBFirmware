@@ -35,9 +35,11 @@ struct ykb_battsense_cb {
 
 #if CONFIG_YKB_BATTSENSE
 #define YKB_BATTSENSE_DEFINE(name)                                             \
-    STRUCT_SECTION_ITERABLE(ykb_batt_service_cb, __ykb_batt_service_cb__##name)
+    STRUCT_SECTION_ITERABLE(ykb_battsense_cb, __ykb_battsense_cb__##name)
 #else
 #define YKB_BATTSENSE_DEFINE(name)
 #endif // CONFIG_YKB_BATTSENSE
+
+int ykb_battsense_get_state(ykb_battsense_state_t *out_state);
 
 #endif // YKB_BATTSENSE_H

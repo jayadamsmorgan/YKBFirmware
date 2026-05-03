@@ -1,0 +1,36 @@
+if SUPPORT_NETCORE
+
+config SUPPORT_NETCORE_CPUNET_MPSL
+	bool
+	default y
+
+config NRF_DEFAULT_CPUNET_MPSL
+	bool
+	default y
+
+choice NETCORE
+	default NETCORE_CPUNET_MPSL if NRF_DEFAULT_CPUNET_MPSL && NETCORE_REMOTE_BOARD_TARGET_CPUCLUSTER != ""
+	depends on !EXTERNAL_CONFIGURED_NETCORE
+
+config NETCORE_CPUNET_MPSL
+	bool "cpunet_mpsl"
+	depends on SUPPORT_NETCORE_CPUNET_MPSL
+	help
+	  Build the project's custom MPSL-based network core image from
+	  `cpunet_mpsl/`.
+
+endchoice
+
+if !NETCORE_NONE
+
+config NETCORE_IMAGE_NAME
+	default "cpunet_mpsl" if NETCORE_CPUNET_MPSL
+
+config NETCORE_IMAGE_PATH
+	default "$(APP_DIR)/../cpunet_mpsl" if NETCORE_CPUNET_MPSL
+
+endif # !NETCORE_NONE
+
+endif # SUPPORT_NETCORE
+
+source "share/sysbuild/Kconfig"

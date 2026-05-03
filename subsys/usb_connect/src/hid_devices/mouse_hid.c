@@ -113,7 +113,7 @@ static struct hid_device_ops ops = {
     .output_report = output_report,
 };
 
-int usb_connect_init_mouse_hid(void) {
+static int usb_connect_init_mouse_hid(void) {
     if (!device_is_ready(hid_mouse_dev)) {
         LOG_ERR("hid_mouse not ready");
         return -EIO;
@@ -129,7 +129,7 @@ int usb_connect_init_mouse_hid(void) {
     return 0;
 }
 
-void on_mouse_report_ready(const hid_mouse_report_t *report) {
+static void on_mouse_report_ready(const hid_mouse_report_t *report) {
     bool ready = ATOMIC_LOAD(&__ready);
     usb_connect_handle_wakeup();
     if (!ready) {
@@ -145,3 +145,5 @@ void on_mouse_report_ready(const hid_mouse_report_t *report) {
 static KB_HANDLER_TRANSPORT_CB_DEFINE(mouse_hid) = {
     .on_mouse_report_ready = on_mouse_report_ready,
 };
+
+USB_CONNECT_REGISTER_HID_DEVICE(usb_mouse, usb_connect_init_mouse_hid);

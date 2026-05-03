@@ -5,6 +5,7 @@ from pathlib import Path
 
 ARRAY_SECTIONS = ("led_map", "x_coordinates", "y_coordinates")
 
+
 def c_ident(name: str) -> str:
     out = []
     for ch in name:
@@ -29,12 +30,12 @@ def parse_layout(path: Path):
             if current not in data:
                 raise ValueError(
                     f"{path}:{lineno}: unknown section '{current}', "
-                    f"expected one of {', '.join(ARRAY_SECTIONS)}"
-                )
+                    f"expected one of {', '.join(ARRAY_SECTIONS)}")
             continue
 
         if current is None:
-            raise ValueError(f"{path}:{lineno}: content found before any section")
+            raise ValueError(
+                f"{path}:{lineno}: content found before any section")
 
         for token in line.split():
             if token != "|":
@@ -83,13 +84,12 @@ def main():
     files = [Path(p) for p in args.bins]
     layout_path = Path(args.layout)
     layout_sections = parse_layout(layout_path)
-    led_map = parse_u16_array(layout_sections["led_map"], layout_path, "led_map")
-    x_coordinates = parse_u16_array(
-        layout_sections["x_coordinates"], layout_path, "x_coordinates"
-    )
-    y_coordinates = parse_u16_array(
-        layout_sections["y_coordinates"], layout_path, "y_coordinates"
-    )
+    led_map = parse_u16_array(layout_sections["led_map"], layout_path,
+                              "led_map")
+    x_coordinates = parse_u16_array(layout_sections["x_coordinates"],
+                                    layout_path, "x_coordinates")
+    y_coordinates = parse_u16_array(layout_sections["y_coordinates"],
+                                    layout_path, "y_coordinates")
 
     key_count = len(led_map)
     if key_count == 0:
@@ -97,13 +97,11 @@ def main():
     if len(x_coordinates) != key_count:
         raise ValueError(
             f"{layout_path}: x_coordinates has {len(x_coordinates)} entries, "
-            f"expected {key_count}"
-        )
+            f"expected {key_count}")
     if len(y_coordinates) != key_count:
         raise ValueError(
             f"{layout_path}: y_coordinates has {len(y_coordinates)} entries, "
-            f"expected {key_count}"
-        )
+            f"expected {key_count}")
 
     names = []
     offsets = [0]
@@ -179,7 +177,7 @@ const ykb_backlight_settings_t {args.symbol} =
 {{
     .on = true,
     .script_amount = {len(names)},
-    .active_script_index = 0,
+    .active_script_index = 2,
     .speed = 1.0f,
     .brightness = 1.0f,
     .thread_sleep_ms = DEFAULT_THREAD_SLEEP_MS,

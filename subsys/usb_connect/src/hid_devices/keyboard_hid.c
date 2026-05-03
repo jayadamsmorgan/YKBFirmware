@@ -13,7 +13,7 @@ static const uint8_t hid_kbd_report_desc[] = {
     HID_USAGE(HID_USAGE_GEN_DESKTOP_KEYBOARD),
     HID_COLLECTION(HID_COLLECTION_APPLICATION),
 
-    HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP_KEYPAD),
+    HID_USAGE_PAGE(HID_USAGE_GEN_KEYBOARD),
     HID_USAGE_MIN8(0xE0),
     HID_USAGE_MAX8(0xE7),
     HID_LOGICAL_MIN8(0),
@@ -41,7 +41,7 @@ static const uint8_t hid_kbd_report_desc[] = {
     HID_REPORT_COUNT(6),
     HID_LOGICAL_MIN8(0),
     HID_LOGICAL_MAX8(101),
-    HID_USAGE_PAGE(HID_USAGE_GEN_DESKTOP_KEYPAD),
+    HID_USAGE_PAGE(HID_USAGE_GEN_KEYBOARD),
     HID_USAGE_MIN8(0),
     HID_USAGE_MAX8(101),
     HID_INPUT(0x00),
@@ -117,7 +117,7 @@ static struct hid_device_ops ops = {
     .output_report = output_report,
 };
 
-int usb_connect_init_kbd_hid(void) {
+static int usb_connect_init_kbd_hid(void) {
     if (!device_is_ready(hid_kbd_dev)) {
         LOG_ERR("hid_kbd not ready");
         return -EIO;
@@ -151,3 +151,5 @@ static void on_kb_report_ready(const hid_kb_report_t *const report) {
 static KB_HANDLER_TRANSPORT_CB_DEFINE(kbd_hid) = {
     .on_kb_report_ready = on_kb_report_ready,
 };
+
+USB_CONNECT_REGISTER_HID_DEVICE(usb_kbd, usb_connect_init_kbd_hid);

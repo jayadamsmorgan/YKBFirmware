@@ -8,6 +8,19 @@
 #include <zephyr/sys/util.h>
 
 #include <zephyr/ipc/ipc_service.h>
+#if DT_NODE_HAS_COMPAT(DT_CHOSEN(zephyr_bt_hci_ipc), zephyr_ipc_openamp_static_vrings)
+#include <openamp/rpmsg_virtio.h>
+#define IPC_BUF_SIZE                                                            \
+    DT_PROP_OR(DT_CHOSEN(zephyr_bt_hci_ipc), zephyr_buffer_size,                \
+               RPMSG_BUFFER_SIZE)
+#define IPC_MEM_SIZE                                                            \
+    (DT_REG_SIZE(DT_PHANDLE(DT_CHOSEN(zephyr_bt_hci_ipc), memory_region)) / 2)
+#define MAX_IPC_BLOCKS DIV_ROUND_UP(IPC_MEM_SIZE, IPC_BUF_SIZE)
+#elif DT_NODE_HAS_COMPAT(DT_CHOSEN(zephyr_bt_hci_ipc), zephyr_ipc_icbmsg)
+#define MAX_IPC_BLOCKS DT_PROP(DT_CHOSEN(zephyr_bt_hci_ipc), rx_blocks)
+#else
+#error "IPC backends other than rpmsg or icbmsg are not supported."
+#endif
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/buf.h>
@@ -31,8 +44,21 @@ static struct ipc_ept hci_ept;
 
 static K_THREAD_STACK_DEFINE(tx_thread_stack, CONFIG_BT_HCI_TX_STACK_SIZE);
 static struct k_thread tx_thread_data;
+static K_THREAD_STACK_DEFINE(queue_thread_stack, CONFIG_BT_HCI_TX_STACK_SIZE);
+static struct k_thread queue_thread_data;
 static K_FIFO_DEFINE(tx_queue);
+static K_FIFO_DEFINE(rx_queue);
 static K_SEM_DEFINE(ipc_bound_sem, 0, 1);
+static bool bt_raw_ready;
+static bool worker_threads_started;
+static bool endpoint_registered;
+static bool ipc_instance_opened;
+struct ipc_block_item {
+    const void *ptr;
+    size_t len;
+};
+K_MSGQ_DEFINE(ipc_block_queue, sizeof(struct ipc_block_item), MAX_IPC_BLOCKS,
+              sizeof(void *));
 #if defined(CONFIG_BT_CTLR_ASSERT_HANDLER) ||                                  \
     defined(CONFIG_BT_HCI_VS_FATAL_ERROR)
 /* A flag used to store information if the IPC endpoint has already been bound.
@@ -158,38 +184,52 @@ static struct net_buf *hci_ipc_iso_recv(uint8_t *data, size_t remaining) {
     return buf;
 }
 
-static void hci_ipc_rx(uint8_t *data, size_t len) {
-    uint8_t pkt_indicator;
-    struct net_buf *buf = NULL;
-    size_t remaining = len;
+static void queue_thread(void *p1, void *p2, void *p3) {
+    ARG_UNUSED(p1);
+    ARG_UNUSED(p2);
+    ARG_UNUSED(p3);
 
-    LOG_HEXDUMP_DBG(data, len, "IPC data:");
+    while (1) {
+        struct ipc_block_item block;
+        const uint8_t *data;
+        uint8_t pkt_indicator;
+        struct net_buf *buf = NULL;
+        size_t remaining;
+        int err = k_msgq_get(&ipc_block_queue, &block, K_FOREVER);
 
-    pkt_indicator = *data++;
-    remaining -= sizeof(pkt_indicator);
+        __ASSERT_NO_MSG(err == 0);
 
-    switch (pkt_indicator) {
-    case HCI_IPC_CMD:
-        buf = hci_ipc_cmd_recv(data, remaining);
-        break;
+        data = block.ptr;
+        pkt_indicator = *data++;
+        remaining = block.len - sizeof(pkt_indicator);
 
-    case HCI_IPC_ACL:
-        buf = hci_ipc_acl_recv(data, remaining);
-        break;
+        switch (pkt_indicator) {
+        case HCI_IPC_CMD:
+            buf = hci_ipc_cmd_recv((uint8_t *)data, remaining);
+            break;
 
-    case HCI_IPC_ISO:
-        buf = hci_ipc_iso_recv(data, remaining);
-        break;
+        case HCI_IPC_ACL:
+            buf = hci_ipc_acl_recv((uint8_t *)data, remaining);
+            break;
 
-    default:
-        LOG_ERR("Unknown HCI type %u", pkt_indicator);
-        return;
-    }
+        case HCI_IPC_ISO:
+            buf = hci_ipc_iso_recv((uint8_t *)data, remaining);
+            break;
 
-    if (buf) {
-        k_fifo_put(&tx_queue, buf);
+        default:
+            LOG_ERR("Unknown HCI type %u", pkt_indicator);
+            break;
+        }
 
-        LOG_HEXDUMP_DBG(buf->data, buf->len, "Final net buffer:");
+        err = ipc_service_release_rx_buffer(&hci_ept, (void *)block.ptr);
+        if (err < 0) {
+            LOG_ERR("Failed to release rx buffer: %d", err);
+        }
+
+        if (buf) {
+            k_fifo_put(&tx_queue, buf);
+            LOG_HEXDUMP_DBG(buf->data, buf->len, "Final net buffer:");
+        }
     }
 }
 
@@ -349,8 +389,30 @@ static void hci_ept_bound(void *priv) {
 }
 
 static void hci_ept_recv(const void *data, size_t len, void *priv) {
+    struct ipc_block_item block = {
+        .ptr = data,
+        .len = len,
+    };
+    int err;
+
     LOG_INF("Received message of %u bytes.", len);
-    hci_ipc_rx((uint8_t *)data, len);
+    LOG_HEXDUMP_DBG(data, len, "IPC data:");
+
+    err = ipc_service_hold_rx_buffer(&hci_ept, (void *)data);
+    if (err) {
+        LOG_ERR("Failed to hold rx buffer: %d", err);
+        return;
+    }
+
+    err = k_msgq_put(&ipc_block_queue, &block, K_NO_WAIT);
+    if (err) {
+        LOG_ERR("Failed to queue IPC rx buffer: %d", err);
+        int release_err = ipc_service_release_rx_buffer(&hci_ept, (void *)data);
+        if (release_err < 0) {
+            LOG_ERR("Failed to release rx buffer after queue error: %d",
+                    release_err);
+        }
+    }
 }
 
 static struct ipc_ept_cfg hci_ept_cfg = {
@@ -362,46 +424,91 @@ static struct ipc_ept_cfg hci_ept_cfg = {
         },
 };
 
+static void start_threads_once(void) {
+    if (worker_threads_started) {
+        return;
+    }
+
+    k_thread_create(&tx_thread_data, tx_thread_stack,
+                    K_THREAD_STACK_SIZEOF(tx_thread_stack), tx_thread, NULL,
+                    NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
+    k_thread_name_set(&tx_thread_data, "HCI ipc TX");
+    k_thread_create(&queue_thread_data, queue_thread_stack,
+                    K_THREAD_STACK_SIZEOF(queue_thread_stack), queue_thread,
+                    NULL, NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
+    k_thread_name_set(&queue_thread_data, "HCI ipc RX");
+    worker_threads_started = true;
+}
+
+static void reset_ipc_startup_state(const struct device *hci_ipc_instance) {
+    if (endpoint_registered) {
+        int err = ipc_service_deregister_endpoint(&hci_ept);
+        if (err < 0) {
+            LOG_WRN("Failed to deregister HCI endpoint: %d", err);
+        }
+        endpoint_registered = false;
+    }
+
+    if (ipc_instance_opened) {
+        int err = ipc_service_close_instance(hci_ipc_instance);
+        if (err < 0) {
+            LOG_WRN("Failed to close HCI IPC instance: %d", err);
+        }
+        ipc_instance_opened = false;
+    }
+}
+
 int bt_hci_init(void) {
     int err;
     const struct device *hci_ipc_instance =
         DEVICE_DT_GET(DT_CHOSEN(zephyr_bt_hci_ipc));
 
-    /* incoming events and data from the controller */
-    static K_FIFO_DEFINE(rx_queue);
-
     LOG_DBG("Start");
 
     /* Enable the raw interface, this will in turn open the HCI driver */
-    bt_enable_raw(&rx_queue);
+    if (!bt_raw_ready) {
+        err = bt_enable_raw(&rx_queue);
+        if (err) {
+            LOG_ERR("bt_enable_raw failed: %d", err);
+            return err;
+        }
+        bt_raw_ready = true;
+    }
 
-    /* Spawn the TX thread and start feeding commands and data to the
-     * controller
-     */
-    k_thread_create(&tx_thread_data, tx_thread_stack,
-                    K_THREAD_STACK_SIZEOF(tx_thread_stack), tx_thread, NULL,
-                    NULL, NULL, K_PRIO_COOP(7), 0, K_NO_WAIT);
-    k_thread_name_set(&tx_thread_data, "HCI ipc TX");
+    start_threads_once();
 
     /* Initialize IPC service instance and register endpoint. */
     err = ipc_service_open_instance(hci_ipc_instance);
     if (err < 0 && err != -EALREADY) {
         LOG_ERR("IPC service instance initialization failed: %d\n", err);
+        return err;
     }
+    ipc_instance_opened = true;
 
     err =
         ipc_service_register_endpoint(hci_ipc_instance, &hci_ept, &hci_ept_cfg);
     if (err) {
         LOG_ERR("Registering endpoint failed with %d", err);
+        reset_ipc_startup_state(hci_ipc_instance);
+        return err;
+    }
+    endpoint_registered = true;
+
+    err = k_sem_take(&ipc_bound_sem, K_SECONDS(5));
+    if (err) {
+        LOG_ERR("Endpoint binding failed with %d", err);
+        reset_ipc_startup_state(hci_ipc_instance);
+        return err;
     }
 
-    k_sem_take(&ipc_bound_sem, K_FOREVER);
+    return 0;
+}
 
+int bt_hci_process(void) {
     while (1) {
-        struct net_buf *buf;
-
-        buf = k_fifo_get(&rx_queue, K_FOREVER);
+        struct net_buf *buf = k_fifo_get(&rx_queue, K_FOREVER);
         hci_ipc_send(buf, HCI_REGULAR_MSG);
     }
+
     return 0;
 }

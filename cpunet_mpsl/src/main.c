@@ -13,8 +13,18 @@
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 int main(void) {
-    bt_hci_init();
     while (true) {
-        k_sleep(K_MSEC(3000));
+        int err = bt_hci_init();
+        if (err) {
+            LOG_ERR("bt_hci_init failed: %d", err);
+            k_sleep(K_MSEC(250));
+            continue;
+        }
+
+        err = bt_hci_process();
+        if (err) {
+            LOG_ERR("bt_hci_process failed: %d", err);
+            k_sleep(K_MSEC(250));
+        }
     }
 }

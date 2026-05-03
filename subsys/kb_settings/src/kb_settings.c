@@ -32,6 +32,9 @@ typedef struct {
 static kb_settings_t kb_settings;
 static bool settings_registered = false;
 static bool successfully_loaded = false;
+static kb_settings_t notify_snapshot;
+static kb_settings_image_t load_img;
+static kb_settings_image_t save_img;
 
 static K_MUTEX_DEFINE(kb_settings_mut);
 
@@ -39,10 +42,7 @@ static void
 kb_settings_handle_on_update_snapshot(const kb_settings_t *settings) {
     STRUCT_SECTION_FOREACH(kb_settings_cb, callbacks) {
         if (callbacks->on_update) {
-            // Creating temp just to make sure user never touches
-            // actual settings
-            kb_settings_t temp = *settings;
-            callbacks->on_update(&temp);
+            callbacks->on_update(settings);
         }
     }
 }
@@ -109,35 +109,33 @@ int kb_settings_handler_set(const char *key, size_t len,
         return -EINVAL;
     }
 
-    kb_settings_image_t img;
-    ssize_t rlen = read_cb(cb_arg, &img, sizeof(img));
+    ssize_t rlen = read_cb(cb_arg, &load_img, sizeof(load_img));
 
     if (rlen < 0) {
         LOG_ERR("Keyboard settings read_cb error: %d", (int)rlen);
         return -EINVAL;
     }
 
-    if ((size_t)rlen != sizeof(img)) {
+    if ((size_t)rlen != sizeof(load_img)) {
         LOG_ERR("Keyboard settings truncated: %zd", rlen);
         return -EINVAL;
     }
 
-    if (img.version != KB_SETTINGS_IMAGE_VERSION) {
+    if (load_img.version != KB_SETTINGS_IMAGE_VERSION) {
         LOG_ERR("Keyboad settings image version mismatch: got %u, want %u",
-                img.version, KB_SETTINGS_IMAGE_VERSION);
+                load_img.version, KB_SETTINGS_IMAGE_VERSION);
         return -EINVAL;
     }
 
     k_mutex_lock(&kb_settings_mut, K_FOREVER);
 
-    kb_settings_t snapshot;
-    memcpy(&kb_settings, &img.settings, sizeof(kb_settings_t));
-    memcpy(&snapshot, &kb_settings, sizeof(kb_settings_t));
+    memcpy(&kb_settings, &load_img.settings, sizeof(kb_settings_t));
+    memcpy(&notify_snapshot, &kb_settings, sizeof(kb_settings_t));
     successfully_loaded = true;
 
     k_mutex_unlock(&kb_settings_mut);
 
-    kb_settings_handle_on_update_snapshot(&snapshot);
+    kb_settings_handle_on_update_snapshot(&notify_snapshot);
 
     return 0;
 }
@@ -145,13 +143,13 @@ int kb_settings_handler_set(const char *key, size_t len,
 int kb_settings_handler_export(int (*export_func)(const char *name,
                                                   const void *val,
                                                   size_t val_len)) {
-    kb_settings_image_t img = {
+    save_img = (kb_settings_image_t){
         .version = KB_SETTINGS_IMAGE_VERSION,
     };
     k_mutex_lock(&kb_settings_mut, K_FOREVER);
-    memcpy(&img.settings, &kb_settings, sizeof(kb_settings_t));
+    memcpy(&save_img.settings, &kb_settings, sizeof(kb_settings_t));
     k_mutex_unlock(&kb_settings_mut);
-    return export_func(KB_SETTINGS_ITEM, &img, sizeof(img));
+    return export_func(KB_SETTINGS_ITEM, &save_img, sizeof(save_img));
 }
 
 static struct settings_handler kb_settings_handler = {
@@ -166,11 +164,11 @@ static void kb_settings_save() {
             "Attempt to save kb_settings but settings API was not registered.");
         return;
     }
-    kb_settings_image_t img = {
+    save_img = (kb_settings_image_t){
         .version = KB_SETTINGS_IMAGE_VERSION,
     };
-    memcpy(&img.settings, &kb_settings, sizeof(kb_settings));
-    int err = settings_save_one(KB_SETTINGS_KEY, &img, sizeof(img));
+    memcpy(&save_img.settings, &kb_settings, sizeof(kb_settings));
+    int err = settings_save_one(KB_SETTINGS_KEY, &save_img, sizeof(save_img));
     if (err) {
         LOG_WRN("Could not save keyboard settings: %d", err);
         return;
@@ -182,7 +180,6 @@ static int kb_settings_init(void) {
     int err;
     int res;
     successfully_loaded = false;
-    kb_settings_t snapshot;
 
     if (!settings_registered) {
         err = settings_subsys_init();
@@ -221,10 +218,10 @@ load_defaults:
     kb_settings_save();
 
     k_mutex_lock(&kb_settings_mut, K_FOREVER);
-    memcpy(&snapshot, &kb_settings, sizeof(kb_settings_t));
+    memcpy(&notify_snapshot, &kb_settings, sizeof(kb_settings_t));
     k_mutex_unlock(&kb_settings_mut);
 
-    kb_settings_handle_on_update_snapshot(&snapshot);
+    kb_settings_handle_on_update_snapshot(&notify_snapshot);
 
     return err;
 }
@@ -244,22 +241,20 @@ int kb_settings_get(kb_settings_t *settings) {
     return 0;
 }
 
-int kb_settings_apply(kb_settings_t *settings) {
+int kb_settings_apply(const kb_settings_t *settings) {
     if (!settings) {
         return -EINVAL;
     }
     k_mutex_lock(&kb_settings_mut, K_FOREVER);
 
-    kb_settings_t snapshot;
-
     memcpy(&kb_settings, settings, sizeof(kb_settings_t));
-    memcpy(&snapshot, settings, sizeof(kb_settings_t));
+    memcpy(&notify_snapshot, settings, sizeof(kb_settings_t));
 
     k_mutex_unlock(&kb_settings_mut);
 
     kb_settings_save();
 
-    kb_settings_handle_on_update_snapshot(&snapshot);
+    kb_settings_handle_on_update_snapshot(&notify_snapshot);
 
     return 0;
 }

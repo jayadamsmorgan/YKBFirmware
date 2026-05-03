@@ -113,7 +113,7 @@ typedef struct {
 } kb_settings_t;
 
 struct kb_settings_cb {
-    void (*on_update)(kb_settings_t *settings);
+    void (*on_update)(const kb_settings_t *settings);
 };
 
 #define ON_SETTINGS_UPDATE_DEFINE(name, cb)                                    \
@@ -129,6 +129,6 @@ int kb_settings_get(kb_settings_t *settings);
 //
 // This funciton will block until settings are availble to save.
 // Returns 0 on success, negative value otherwise.
-int kb_settings_apply(kb_settings_t *settings);
+int kb_settings_apply(const kb_settings_t *settings);
 
 #endif // KB_SETTINGS_H_
