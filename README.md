@@ -32,5 +32,5 @@ west sdk install
 cd YKBFirmware
 
 # Build for the available board:
-west ykb-build dactyl_v1
+west ykb-build skadi 
 ```

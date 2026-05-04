@@ -1,6 +1,6 @@
 board:
-  name: dactyl_v1 
-  full_name: YKB Dactyl V1
+  name: skadi 
+  full_name: YKB Skadi
   vendor: ykb
   socs:
   - name: 'nrf5340'

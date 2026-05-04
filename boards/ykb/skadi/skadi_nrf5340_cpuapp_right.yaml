@@ -1,5 +1,5 @@
-identifier: dactyl_v1/nrf5340/cpuapp/left
-name: YKB Dactyl V1 (Left)
+identifier: skadi/nrf5340/cpuapp/right
+name: YKB Skadi (Right)
 type: mcu
 arch: arm
 toolchain:

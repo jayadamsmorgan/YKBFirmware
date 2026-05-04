@@ -3,8 +3,8 @@
 #include "cpunet/pinctrl.dtsi"
 
 / {
-	model = "Dactyl V1 NRF5340 Network Core";
-	compatible = "ykb,dactyl_v1-nrf5340-cpunet";
+	model = "Skadi NRF5340 Network Core";
+	compatible = "ykb,skadi-nrf5340-cpunet";
 
 	chosen {
 		zephyr,console = &uart0;

@@ -1,5 +1,5 @@
-identifier: dactyl_v1/nrf5340/cpunet
-name: YKB Dactyl V1 (Net core)
+identifier: skadi/nrf5340/cpunet
+name: YKB Skadi (Net core)
 type: mcu
 arch: arm
 toolchain:

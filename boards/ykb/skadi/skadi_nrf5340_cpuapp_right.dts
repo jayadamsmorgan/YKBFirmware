@@ -3,8 +3,8 @@
 #include "cpuapp/common.dts"
 
 / {
-	model = "YKB Dactyl V1 Right board";
-	compatible = "ykb,dactyl-v1-nrf5340-cpuapp-right";
+	model = "YKB Skadi Right board";
+	compatible = "ykb,skadi-nrf5340-cpuapp-right";
 
 	chosen {
 		zephyr,sram = &sram0_image;
