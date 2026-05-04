@@ -18,7 +18,7 @@ pip install -U west
 cd ~/ykb-firmware-ws
 
 # Initialize project, SDK and deps
-west init -m https://github.com/jayadamsmorgan/YKBFirmware --mr master
+west init -m https://github.com/YarmanKB/YKBFirmware --mr master
 west update
 west zephyr-export
 

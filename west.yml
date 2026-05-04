@@ -4,7 +4,7 @@ manifest:
 
   remotes:
     - name: ncs
-      url-base: https://github.com/jayadamsmorgan
+      url-base: https://github.com/YarmanKB
 
   projects:
     - name: nrf
@@ -16,4 +16,4 @@ manifest:
     - name: lumiscript
       path: modules/lumiscript
       revision: master
-      url: https://github.com/jayadamsmorgan/lumiscript
+      url: https://github.com/YarmanKB/lumiscript
