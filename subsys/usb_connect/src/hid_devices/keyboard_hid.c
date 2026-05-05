@@ -133,8 +133,10 @@ static int usb_connect_init_kbd_hid(void) {
     return 0;
 }
 
-static void on_kb_report_ready(const hid_kb_report_t *const report) {
-    bool ready = ATOMIC_LOAD(&__ready);
+bool usb_connect_can_send_kb_report(void) { return ATOMIC_LOAD(&__ready); }
+
+void usb_connect_send_kb_report(const hid_kb_report_t *const report) {
+    bool ready = usb_connect_can_send_kb_report();
     usb_connect_handle_wakeup();
     if (!ready) {
         LOG_ERR("send_kb_report: not ready");
@@ -147,9 +149,5 @@ static void on_kb_report_ready(const hid_kb_report_t *const report) {
     }
     LOG_INF("send_kb_report: sent");
 }
-
-static KB_HANDLER_TRANSPORT_CB_DEFINE(kbd_hid) = {
-    .on_kb_report_ready = on_kb_report_ready,
-};
 
 USB_CONNECT_REGISTER_HID_DEVICE(usb_kbd, usb_connect_init_kbd_hid);

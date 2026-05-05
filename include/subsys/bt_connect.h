@@ -18,6 +18,9 @@ void bt_connect_send_kb_report(const hid_kb_report_t *report);
 
 void bt_connect_send_mouse_report(const hid_mouse_report_t *report);
 
+bool bt_connect_can_send_kb_report(void);
+bool bt_connect_can_send_mouse_report(void);
+
 void bt_connect_set_battery_level(uint8_t percentage);
 
 #endif // LIB_BT_CONNECT_H

@@ -139,13 +139,5 @@ int bt_connect_keyboard_send_report(const hid_kb_report_t *report) {
     return 0;
 }
 
-static void on_kb_report_ready(const hid_kb_report_t *const report) {
-    (void)bt_connect_keyboard_send_report(report);
-}
-
-static KB_HANDLER_TRANSPORT_CB_DEFINE(bt_connect_kbd_transport) = {
-    .on_kb_report_ready = on_kb_report_ready,
-};
-
 BT_CONNECT_REGISTER_HID_REPORT(bt_connect_kbd_hid, hid_kbd_report_desc,
                                append_kbd_hids_init);

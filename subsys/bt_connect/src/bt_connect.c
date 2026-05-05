@@ -129,6 +129,10 @@ static bool any_connected(void) {
     return false;
 }
 
+bool bt_connect_can_send_kb_report(void) { return any_connected(); }
+
+bool bt_connect_can_send_mouse_report(void) { return any_connected(); }
+
 static void notify_connected(const bt_addr_le_t *addr) {
     STRUCT_SECTION_FOREACH(bt_connect_cb, cb) {
         if (cb->on_connect) {

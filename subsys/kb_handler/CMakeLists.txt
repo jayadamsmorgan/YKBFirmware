@@ -1,7 +1,5 @@
 zephyr_library()
 
-zephyr_linker_sources(SECTIONS iterables.ld)
-
 include(${APP_DIR}/../cmake/ykb_board_assets.cmake)
 ykb_resolve_board_asset(KB_HANDLER_LAYOUT_FILE resources/kb_handler_layout.txt REQUIRED)
 

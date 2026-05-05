@@ -129,8 +129,10 @@ static int usb_connect_init_mouse_hid(void) {
     return 0;
 }
 
-static void on_mouse_report_ready(const hid_mouse_report_t *report) {
-    bool ready = ATOMIC_LOAD(&__ready);
+bool usb_connect_can_send_mouse_report(void) { return ATOMIC_LOAD(&__ready); }
+
+void usb_connect_send_mouse_report(const hid_mouse_report_t *report) {
+    bool ready = usb_connect_can_send_mouse_report();
     usb_connect_handle_wakeup();
     if (!ready) {
         return;
@@ -141,9 +143,5 @@ static void on_mouse_report_ready(const hid_mouse_report_t *report) {
         LOG_ERR("Error submitting mouse report: %d", err);
     }
 }
-
-static KB_HANDLER_TRANSPORT_CB_DEFINE(mouse_hid) = {
-    .on_mouse_report_ready = on_mouse_report_ready,
-};
 
 USB_CONNECT_REGISTER_HID_DEVICE(usb_mouse, usb_connect_init_mouse_hid);

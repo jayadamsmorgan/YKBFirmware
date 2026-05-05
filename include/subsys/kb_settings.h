@@ -53,6 +53,11 @@ typedef struct {
     (CONFIG_KB_SETTINGS_YKB_BL_SCRIPT_STORAGE_LEN /                            \
      KB_SETTINGS_YKB_BL_SCRIPT_MIN_LEN)
 
+enum kb_handler_transport_priority {
+    KBH_TRANSPORT_PRIO_USB = 0U,
+    KBH_TRANSPORT_PRIO_BT = 1U,
+};
+
 typedef struct {
     bool on;
     uint16_t active_script_index;
@@ -105,6 +110,8 @@ typedef struct {
     kb_mouseemu_settings_t mouseemu;
 
     kb_battsense_settings_t battsense;
+
+    enum kb_handler_transport_priority kbh_prio;
 
 #if CONFIG_YKB_BACKLIGHT
     ykb_backlight_settings_t backlight;

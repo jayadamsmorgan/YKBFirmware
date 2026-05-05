@@ -292,7 +292,8 @@ static inline void send_kb_report_if_changed(struct kbh_runtime_state *st) {
                     st->third_layer_active);
 
     if (!kb_reports_equal(&st->kb_report, &st->prev_kb_report)) {
-        kb_handler_transport_send_kb_report(&st->kb_report);
+        kb_handler_transport_send_kb_report(&st->kb_report,
+                                            st->settings->kbh_prio);
         st->prev_kb_report = st->kb_report;
     }
 }
@@ -302,7 +303,8 @@ static inline void send_mouse_report_if_changed(struct kbh_runtime_state *st) {
                            &st->mouse_report);
 
     if (!mouse_reports_equal(&st->mouse_report, &st->prev_mouse_report)) {
-        kb_handler_transport_send_mouse_report(&st->mouse_report);
+        kb_handler_transport_send_mouse_report(&st->mouse_report,
+                                               st->settings->kbh_prio);
         st->prev_mouse_report = st->mouse_report;
     }
 }
@@ -345,7 +347,8 @@ static void send_race_report_if_changed(struct kbh_runtime_state *st) {
                     st->third_layer_active);
 
     if (!kb_reports_equal(&st->kb_report, &st->prev_kb_report)) {
-        kb_handler_transport_send_kb_report(&st->kb_report);
+        kb_handler_transport_send_kb_report(&st->kb_report,
+                                            st->settings->kbh_prio);
         st->prev_kb_report = st->kb_report;
     }
 }
@@ -361,8 +364,9 @@ static inline void reset_handler_state(struct kbh_runtime_state *st) {
     memset(&st->kb_report, 0, sizeof(st->kb_report));
     memset(&st->mouse_report, 0, sizeof(st->mouse_report));
 
-    kb_handler_transport_send_kb_report(&st->kb_report);
-    kb_handler_transport_send_mouse_report(&st->mouse_report);
+    kb_handler_transport_send_kb_report(&st->kb_report, st->settings->kbh_prio);
+    kb_handler_transport_send_mouse_report(&st->mouse_report,
+                                           st->settings->kbh_prio);
 
     st->prev_kb_report = st->kb_report;
     st->prev_mouse_report = st->mouse_report;
@@ -614,8 +618,8 @@ static void kb_handler_on_settings_update(const kb_settings_t *settings) {
             continue;
         }
 
-        err = kscan_set_thresholds(kscan,
-                                   (uint16_t *)&settings->thresholds[idx_offset]);
+        err = kscan_set_thresholds(
+            kscan, (uint16_t *)&settings->thresholds[idx_offset]);
         if (err) {
             LOG_ERR("Unable to set thresholds for KScan instance %s (err %d)",
                     kscan->name, err);
